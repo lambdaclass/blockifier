@@ -155,12 +155,20 @@ pub fn run_native_executor(
     };
 
     let execution_result = match native_executor {
-        NativeExecutor::Aot(executor) => executor.invoke_contract_dynamic(
-            sierra_entry_function_id,
-            &stark_felts_to_native_felts(&call.calldata.0),
-            Some(call.initial_gas.into()),
-            &mut syscall_handler,
-        ),
+        NativeExecutor::Aot(executor) => {
+            // dbg!("Executing AOT");
+            // dbg!(&call.calldata.0);
+            let calldata = stark_felts_to_native_felts(&call.calldata.0);
+            let _calldata_converted: Vec<String> =
+                calldata.iter().map(|x| x.to_hex_string()).collect();
+            // dbg!(&calldata_converted);
+            executor.invoke_contract_dynamic(
+                sierra_entry_function_id,
+                &calldata,
+                Some(call.initial_gas.into()),
+                &mut syscall_handler,
+            )
+        }
         NativeExecutor::Jit(executor) => executor.invoke_contract_dynamic(
             sierra_entry_function_id,
             &stark_felts_to_native_felts(&call.calldata.0),
@@ -229,7 +237,7 @@ pub fn u256_to_biguint(u256: U256) -> BigUint {
     let lo = BigUint::from(u256.lo);
     let hi = BigUint::from(u256.hi);
 
-    hi + (lo << 128) // 128 is the size of lo
+    lo + (hi << 128) // 128 is the size of lo
 }
 
 pub fn big4int_to_u256(b_int: BigInt<4>) -> U256 {
