@@ -2792,9 +2792,9 @@ dependencies = [
 
 [[package]]
 name = "papyrus_config"
-version = "0.4.0-dev.4"
+version = "0.4.0-dev.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "681c77c3036aa865206d874c5fbaa264713f22bfd0ef518c7881a1954fc3a045"
+checksum = "15080ab36e1e54ff51d5ee781260c413fa2f0a9effd04491638f79df3f21eb52"
 dependencies = [
  "clap 4.5.8",
  "itertools 0.10.5",
@@ -2807,9 +2807,9 @@ dependencies = [
 
 [[package]]
 name = "papyrus_proc_macros"
-version = "0.4.0-dev.4"
+version = "0.4.0-dev.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80ae7c26b3754c405b911a45d9304c10feebf237b6b91b3c3c0fc31cbad9692f"
+checksum = "15d923ba56bbe4201adf325fb1d5da6ee5d489fa1cab10725fc1668e4c3b0348"
 dependencies = [
  "quote",
  "syn 2.0.68",
