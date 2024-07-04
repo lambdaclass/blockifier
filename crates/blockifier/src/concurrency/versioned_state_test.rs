@@ -95,9 +95,11 @@ fn test_versioned_state_proxy() {
         StateError::UndeclaredClassHash(class_hash) if
         another_class_hash == class_hash
     );
-    assert!(
-        !versioned_state_proxys[0].state().declared_contracts.read(0, another_class_hash).unwrap()
-    );
+    assert!(!versioned_state_proxys[0]
+        .state()
+        .declared_contracts
+        .read(0, another_class_hash)
+        .unwrap());
 
     // Write to the state.
     let new_key = storage_key!("0x11");
@@ -168,12 +170,16 @@ fn test_versioned_state_proxy() {
         versioned_state_proxys[9].get_class_hash_at(contract_address).unwrap(),
         class_hash_v7
     );
-    assert!(
-        !versioned_state_proxys[0].state().declared_contracts.read(0, another_class_hash).unwrap()
-    );
-    assert!(
-        versioned_state_proxys[4].state().declared_contracts.read(4, another_class_hash).unwrap()
-    );
+    assert!(!versioned_state_proxys[0]
+        .state()
+        .declared_contracts
+        .read(0, another_class_hash)
+        .unwrap());
+    assert!(versioned_state_proxys[4]
+        .state()
+        .declared_contracts
+        .read(4, another_class_hash)
+        .unwrap());
     // Include the writes in the current transaction.
     assert_eq!(
         versioned_state_proxys[10].get_class_hash_at(contract_address).unwrap(),
@@ -317,11 +323,9 @@ fn test_validate_reads(
 
     assert_eq!(transactional_state.cache.borrow().initial_reads.declared_contracts.len(), 1);
 
-    assert!(
-        safe_versioned_state
-            .pin_version(1)
-            .validate_reads(&transactional_state.cache.borrow().initial_reads)
-    );
+    assert!(safe_versioned_state
+        .pin_version(1)
+        .validate_reads(&transactional_state.cache.borrow().initial_reads));
 }
 
 #[rstest]

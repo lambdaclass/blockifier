@@ -175,9 +175,7 @@ impl FeatureContract {
             | Self::FaultyAccount(v)
             | Self::TestContract(v)
             | Self::ERC20(v) => *v = version,
-            Self::LegacyTestContract 
-            | Self::SecurityTests 
-            | Self::SierraTestContract=> {
+            Self::LegacyTestContract | Self::SecurityTests | Self::SierraTestContract => {
                 panic!("{self:?} contract has no configurable version.")
             }
         }
@@ -265,7 +263,7 @@ impl FeatureContract {
                     .unwrap()
                     .offset
             }
-            ContractClass::V1Sierra(_class) => todo!("get sierra constract class offset")
+            ContractClass::V1Sierra(_class) => todo!("get sierra constract class offset"),
         }
     }
 
