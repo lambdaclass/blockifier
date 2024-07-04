@@ -5,6 +5,7 @@ use assert_matches::assert_matches;
 use cairo_felt::Felt252;
 use cairo_vm::vm::runners::builtin_runner::{HASH_BUILTIN_NAME, RANGE_CHECK_BUILTIN_NAME};
 use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
+use num_bigint::BigUint;
 use num_traits::Pow;
 use once_cell::sync::Lazy;
 use pretty_assertions::assert_eq;
@@ -34,11 +35,12 @@ use crate::execution::errors::{ConstructorEntryPointExecutionError, EntryPointEx
 use crate::execution::execution_utils::{felt_to_stark_felt, stark_felt_to_felt};
 use crate::execution::syscalls::hint_processor::EmitEventError;
 use crate::execution::syscalls::SyscallSelector;
-use crate::fee::fee_utils::calculate_tx_fee;
+use crate::fee::actual_cost::TransactionReceipt;
+use crate::fee::fee_utils::balance_to_big_uint;
 use crate::fee::gas_usage::{
     estimate_minimal_gas_vector, get_da_gas_cost, get_onchain_data_segment_length,
 };
-use crate::state::cached_state::{CachedState, StateChangesCount};
+use crate::state::cached_state::{CachedState, StateChangesCount, TransactionalState};
 use crate::state::errors::StateError;
 use crate::state::state_api::{State, StateReader};
 use crate::test_utils::contracts::FeatureContract;
@@ -66,9 +68,10 @@ use crate::transaction::objects::{
 };
 use crate::transaction::test_utils::{
     account_invoke_tx, block_context, calculate_class_info_for_testing,
-    create_account_tx_for_validate_test, l1_resource_bounds, FaultyAccountTxCreatorArgs,
-    CALL_CONTRACT, GET_BLOCK_HASH, GET_BLOCK_NUMBER, GET_BLOCK_TIMESTAMP, GET_EXECUTION_INFO,
-    GET_SEQUENCER_ADDRESS, INVALID, VALID,
+    create_account_tx_for_validate_test, create_account_tx_for_validate_test_nonce_0,
+    l1_resource_bounds, FaultyAccountTxCreatorArgs, CALL_CONTRACT, GET_BLOCK_HASH,
+    GET_BLOCK_NUMBER, GET_BLOCK_TIMESTAMP, GET_EXECUTION_INFO, GET_SEQUENCER_ADDRESS, INVALID,
+    VALID,
 };
 use crate::transaction::transaction_types::TransactionType;
 use crate::transaction::transactions::{ExecutableTransaction, L1HandlerTransaction};
@@ -434,13 +437,16 @@ fn test_invoke_tx(
 
     // Build expected fee transfer call info.
     let fee_type = &tx_context.tx_info.fee_type();
-    let expected_actual_fee =
-        calculate_tx_fee(&actual_execution_info.actual_resources, block_context, fee_type).unwrap();
+    let expected_actual_fee = actual_execution_info
+        .transaction_receipt
+        .resources
+        .calculate_tx_fee(block_context, fee_type)
+        .unwrap();
     let expected_fee_transfer_call_info = expected_fee_transfer_call_info(
         &tx_context,
         sender_address,
         expected_actual_fee,
-        FeatureContract::ERC20.get_class_hash(),
+        FeatureContract::ERC20(CairoVersion::Cairo0).get_class_hash(),
     );
 
     let da_gas = starknet_resources.get_state_changes_cost(use_kzg_da);
@@ -452,27 +458,35 @@ fn test_invoke_tx(
         vec![&expected_validate_call_info, &expected_execute_call_info],
     );
     let state_changes_count = starknet_resources.state_changes_for_fee;
-    let expected_actual_resources = TransactionResources {
+    let mut expected_actual_resources = TransactionResources {
         starknet_resources,
         vm_resources: expected_cairo_resources,
         ..Default::default()
     };
-    let mut expected_execution_info = TransactionExecutionInfo {
-        validate_call_info: expected_validate_call_info,
-        execute_call_info: expected_execute_call_info,
-        fee_transfer_call_info: expected_fee_transfer_call_info,
-        actual_fee: expected_actual_fee,
-        da_gas,
-        actual_resources: expected_actual_resources,
-        revert_error: None,
-    };
 
     add_kzg_da_resources_to_resources_mapping(
-        &mut expected_execution_info.actual_resources.vm_resources,
+        &mut expected_actual_resources.vm_resources,
         &state_changes_count,
         versioned_constants,
         use_kzg_da,
     );
+
+    let total_gas = expected_actual_resources
+        .to_gas_vector(&block_context.versioned_constants, block_context.block_info.use_kzg_da)
+        .unwrap();
+
+    let expected_execution_info = TransactionExecutionInfo {
+        validate_call_info: expected_validate_call_info,
+        execute_call_info: expected_execute_call_info,
+        fee_transfer_call_info: expected_fee_transfer_call_info,
+        transaction_receipt: TransactionReceipt {
+            fee: expected_actual_fee,
+            da_gas,
+            resources: expected_actual_resources,
+            gas: total_gas,
+        },
+        revert_error: None,
+    };
 
     // Test execution info result.
     assert_eq!(actual_execution_info, expected_execution_info);
@@ -831,6 +845,7 @@ fn test_max_fee_exceeds_balance(
     let invalid_tx = declare_tx(
         declare_tx_args! {
             class_hash: contract_to_declare.get_class_hash(),
+            compiled_class_hash: contract_to_declare.get_compiled_class_hash(),
             sender_address: account_contract_address,
             max_fee: invalid_max_fee,
         },
@@ -961,7 +976,7 @@ fn test_actual_fee_gt_resource_bounds(
     // Test error.
     assert!(execution_error.starts_with("Insufficient max fee:"));
     // Test that fee was charged.
-    assert_eq!(execution_result.actual_fee, minimal_fee);
+    assert_eq!(execution_result.transaction_receipt.fee, minimal_fee);
 }
 
 #[rstest]
@@ -981,7 +996,7 @@ fn test_invalid_nonce(
         calldata: create_trivial_calldata(test_contract.get_instance_address(0)),
         max_fee: Fee(MAX_FEE)
     };
-    let mut transactional_state = CachedState::create_transactional(state);
+    let mut transactional_state = TransactionalState::create_transactional(state);
 
     // Strict, negative flow: account nonce = 0, incoming tx nonce = 1.
     let invalid_nonce = nonce!(1_u8);
@@ -1094,6 +1109,7 @@ fn test_declare_tx(
     let chain_info = &block_context.chain_info;
     let state = &mut test_state(chain_info, BALANCE, &[(account, 1)]);
     let class_hash = empty_contract.get_class_hash();
+    let compiled_class_hash = empty_contract.get_compiled_class_hash();
     let class_info = calculate_class_info_for_testing(empty_contract.get_class());
     let sender_address = account.get_instance_address(0);
     let starknet_resources = StarknetResources::new(
@@ -1112,6 +1128,7 @@ fn test_declare_tx(
             version: tx_version,
             resource_bounds: l1_resource_bounds(MAX_L1_GAS_AMOUNT, MAX_L1_GAS_PRICE),
             class_hash,
+            compiled_class_hash,
         },
         class_info.clone(),
     );
@@ -1136,13 +1153,16 @@ fn test_declare_tx(
     );
 
     // Build expected fee transfer call info.
-    let expected_actual_fee =
-        calculate_tx_fee(&actual_execution_info.actual_resources, block_context, fee_type).unwrap();
+    let expected_actual_fee = actual_execution_info
+        .transaction_receipt
+        .resources
+        .calculate_tx_fee(block_context, fee_type)
+        .unwrap();
     let expected_fee_transfer_call_info = expected_fee_transfer_call_info(
         tx_context,
         sender_address,
         expected_actual_fee,
-        FeatureContract::ERC20.get_class_hash(),
+        FeatureContract::ERC20(CairoVersion::Cairo0).get_class_hash(),
     );
 
     let da_gas = starknet_resources.get_state_changes_cost(use_kzg_da);
@@ -1153,27 +1173,34 @@ fn test_declare_tx(
         vec![&expected_validate_call_info],
     );
     let state_changes_count = starknet_resources.state_changes_for_fee;
-    let expected_actual_resources = TransactionResources {
+    let mut expected_actual_resources = TransactionResources {
         starknet_resources,
         vm_resources: expected_cairo_resources,
         ..Default::default()
     };
-    let mut expected_execution_info = TransactionExecutionInfo {
-        validate_call_info: expected_validate_call_info,
-        execute_call_info: None,
-        fee_transfer_call_info: expected_fee_transfer_call_info,
-        actual_fee: expected_actual_fee,
-        da_gas,
-        revert_error: None,
-        actual_resources: expected_actual_resources,
-    };
 
     add_kzg_da_resources_to_resources_mapping(
-        &mut expected_execution_info.actual_resources.vm_resources,
+        &mut expected_actual_resources.vm_resources,
         &state_changes_count,
         versioned_constants,
         use_kzg_da,
     );
+
+    let expected_total_gas =
+        expected_actual_resources.to_gas_vector(versioned_constants, use_kzg_da).unwrap();
+
+    let expected_execution_info = TransactionExecutionInfo {
+        validate_call_info: expected_validate_call_info,
+        execute_call_info: None,
+        fee_transfer_call_info: expected_fee_transfer_call_info,
+        transaction_receipt: TransactionReceipt {
+            fee: expected_actual_fee,
+            da_gas,
+            resources: expected_actual_resources,
+            gas: expected_total_gas,
+        },
+        revert_error: None,
+    };
 
     // Test execution info result.
     assert_eq!(actual_execution_info, expected_execution_info);
@@ -1269,16 +1296,19 @@ fn test_deploy_account_tx(
     });
 
     // Build expected fee transfer call info.
-    let expected_actual_fee =
-        calculate_tx_fee(&actual_execution_info.actual_resources.clone(), block_context, fee_type)
-            .unwrap();
+    let expected_actual_fee = actual_execution_info
+        .transaction_receipt
+        .resources
+        .calculate_tx_fee(block_context, fee_type)
+        .unwrap();
     let expected_fee_transfer_call_info = expected_fee_transfer_call_info(
         tx_context,
         deployed_account_address,
         expected_actual_fee,
-        FeatureContract::ERC20.get_class_hash(),
+        FeatureContract::ERC20(CairoVersion::Cairo0).get_class_hash(),
     );
-    let starknet_resources = actual_execution_info.actual_resources.starknet_resources.clone();
+    let starknet_resources =
+        actual_execution_info.transaction_receipt.resources.starknet_resources.clone();
 
     let state_changes_count = StateChangesCount {
         n_storage_updates: 1,
@@ -1294,27 +1324,35 @@ fn test_deploy_account_tx(
         vec![&expected_validate_call_info, &expected_execute_call_info],
     );
 
-    let actual_resources = TransactionResources {
+    let mut actual_resources = TransactionResources {
         starknet_resources,
         vm_resources: expected_cairo_resources,
         ..Default::default()
     };
-    let mut expected_execution_info = TransactionExecutionInfo {
-        validate_call_info: expected_validate_call_info,
-        execute_call_info: expected_execute_call_info,
-        fee_transfer_call_info: expected_fee_transfer_call_info,
-        actual_fee: expected_actual_fee,
-        da_gas,
-        revert_error: None,
-        actual_resources,
-    };
 
     add_kzg_da_resources_to_resources_mapping(
-        &mut expected_execution_info.actual_resources.vm_resources,
+        &mut actual_resources.vm_resources,
         &state_changes_count,
         versioned_constants,
         use_kzg_da,
     );
+
+    let expected_total_gas = actual_resources
+        .to_gas_vector(&block_context.versioned_constants, block_context.block_info.use_kzg_da)
+        .unwrap();
+
+    let expected_execution_info = TransactionExecutionInfo {
+        validate_call_info: expected_validate_call_info,
+        execute_call_info: expected_execute_call_info,
+        fee_transfer_call_info: expected_fee_transfer_call_info,
+        transaction_receipt: TransactionReceipt {
+            fee: expected_actual_fee,
+            da_gas,
+            resources: actual_resources,
+            gas: expected_total_gas,
+        },
+        revert_error: None,
+    };
 
     // Test execution info result.
     assert_eq!(actual_execution_info, expected_execution_info);
@@ -1435,15 +1473,12 @@ fn test_validate_accounts_tx(
     // Negative flows.
 
     // Logic failure.
-    let account_tx = create_account_tx_for_validate_test(
-        &mut NonceManager::default(),
-        FaultyAccountTxCreatorArgs {
-            scenario: INVALID,
-            contract_address_salt: salt_manager.next_salt(),
-            additional_data: None,
-            ..default_args
-        },
-    );
+    let account_tx = create_account_tx_for_validate_test_nonce_0(FaultyAccountTxCreatorArgs {
+        scenario: INVALID,
+        contract_address_salt: salt_manager.next_salt(),
+        additional_data: None,
+        ..default_args
+    });
     let error = account_tx.execute(state, block_context, true, true).unwrap_err();
     check_transaction_execution_error_for_invalid_scenario!(
         cairo_version,
@@ -1452,17 +1487,14 @@ fn test_validate_accounts_tx(
     );
 
     // Try to call another contract (forbidden).
-    let account_tx = create_account_tx_for_validate_test(
-        &mut NonceManager::default(),
-        FaultyAccountTxCreatorArgs {
-            scenario: CALL_CONTRACT,
-            additional_data: Some(vec![stark_felt!("0x1991")]), /* Some address different than
-                                                                 * the address of
-                                                                 * faulty_account. */
-            contract_address_salt: salt_manager.next_salt(),
-            ..default_args
-        },
-    );
+    let account_tx = create_account_tx_for_validate_test_nonce_0(FaultyAccountTxCreatorArgs {
+        scenario: CALL_CONTRACT,
+        additional_data: Some(vec![stark_felt!("0x1991")]), /* Some address different than
+                                                             * the address of
+                                                             * faulty_account. */
+        contract_address_salt: salt_manager.next_salt(),
+        ..default_args
+    });
     let error = account_tx.execute(state, block_context, true, true).unwrap_err();
     check_transaction_execution_error_for_custom_hint!(
         &error,
@@ -1472,15 +1504,12 @@ fn test_validate_accounts_tx(
 
     if let CairoVersion::Cairo1 = cairo_version {
         // Try to use the syscall get_block_hash (forbidden).
-        let account_tx = create_account_tx_for_validate_test(
-            &mut NonceManager::default(),
-            FaultyAccountTxCreatorArgs {
-                scenario: GET_BLOCK_HASH,
-                contract_address_salt: salt_manager.next_salt(),
-                additional_data: None,
-                ..default_args
-            },
-        );
+        let account_tx = create_account_tx_for_validate_test_nonce_0(FaultyAccountTxCreatorArgs {
+            scenario: GET_BLOCK_HASH,
+            contract_address_salt: salt_manager.next_salt(),
+            additional_data: None,
+            ..default_args
+        });
         let error = account_tx.execute(state, block_context, true, true).unwrap_err();
         check_transaction_execution_error_for_custom_hint!(
             &error,
@@ -1490,14 +1519,11 @@ fn test_validate_accounts_tx(
     }
     if let CairoVersion::Cairo0 = cairo_version {
         // Try to use the syscall get_sequencer_address (forbidden).
-        let account_tx = create_account_tx_for_validate_test(
-            &mut NonceManager::default(),
-            FaultyAccountTxCreatorArgs {
-                scenario: GET_SEQUENCER_ADDRESS,
-                contract_address_salt: salt_manager.next_salt(),
-                ..default_args
-            },
-        );
+        let account_tx = create_account_tx_for_validate_test_nonce_0(FaultyAccountTxCreatorArgs {
+            scenario: GET_SEQUENCER_ADDRESS,
+            contract_address_salt: salt_manager.next_salt(),
+            ..default_args
+        });
         let error = account_tx.execute(state, block_context, true, true).unwrap_err();
         check_transaction_execution_error_for_custom_hint!(
             &error,
@@ -1783,25 +1809,38 @@ fn test_l1_handler(#[values(false, true)] use_kzg_da: bool) {
 
     // Copy StarknetResources from actual resources and assert gas usage calculation is correct.
     let expected_tx_resources = TransactionResources {
-        starknet_resources: actual_execution_info.actual_resources.starknet_resources.clone(),
+        starknet_resources: actual_execution_info
+            .transaction_receipt
+            .resources
+            .starknet_resources
+            .clone(),
         vm_resources: expected_execution_resources,
         ..Default::default()
     };
     assert_eq!(
         expected_gas,
         actual_execution_info
-            .actual_resources
+            .transaction_receipt
+            .resources
             .starknet_resources
             .to_gas_vector(versioned_constants, use_kzg_da)
     );
+
+    let total_gas = expected_tx_resources
+        .to_gas_vector(versioned_constants, block_context.block_info.use_kzg_da)
+        .unwrap();
+
     // Build the expected execution info.
     let expected_execution_info = TransactionExecutionInfo {
         validate_call_info: None,
         execute_call_info: Some(expected_call_info),
         fee_transfer_call_info: None,
-        actual_fee: Fee(0),
-        da_gas: expected_da_gas,
-        actual_resources: expected_tx_resources,
+        transaction_receipt: TransactionReceipt {
+            fee: Fee(0),
+            da_gas: expected_da_gas,
+            resources: expected_tx_resources,
+            gas: total_gas,
+        },
         revert_error: None,
     };
 
@@ -1828,9 +1867,11 @@ fn test_l1_handler(#[values(false, true)] use_kzg_da: bool) {
     let tx_no_fee = L1HandlerTransaction::create_for_testing(Fee(0), contract_address);
     let error = tx_no_fee.execute(state, block_context, true, true).unwrap_err();
     // Today, we check that the paid_fee is positive, no matter what was the actual fee.
-    let expected_actual_fee =
-        calculate_tx_fee(&expected_execution_info.actual_resources, block_context, &FeeType::Eth)
-            .unwrap();
+    let expected_actual_fee = (expected_execution_info
+        .transaction_receipt
+        .resources
+        .calculate_tx_fee(block_context, &FeeType::Eth))
+    .unwrap();
     assert_matches!(
         error,
         TransactionExecutionError::TransactionFeeError(
@@ -1972,4 +2013,10 @@ fn test_emit_event_exceeds_limit(
             assert!(!execution_info.is_reverted());
         }
     }
+}
+
+#[test]
+fn test_balance_print() {
+    let int = balance_to_big_uint(&StarkFelt::from(16_u64), &StarkFelt::from(1_u64));
+    assert!(format!("{}", int) == (BigUint::from(u128::MAX) + BigUint::from(17_u128)).to_string());
 }

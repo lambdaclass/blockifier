@@ -7,6 +7,7 @@ pub mod initial_test_state;
 pub mod invoke;
 pub mod prices;
 pub mod struct_impls;
+pub mod transfers_generator;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -72,8 +73,8 @@ pub const TEST_ERC20_FULL_CONTRACT_CLASS_HASH: &str = "0x1011";
 // Paths.
 pub const TEST_EMPTY_CONTRACT_CAIRO1_PATH: &str =
     "./feature_contracts/cairo1/compiled/empty_contract.casm.json"; // REBASE NOTE: remove
-pub const ERC20_CONTRACT_PATH: &str =
-    "./ERC20_without_some_syscalls/ERC20/erc20_contract_without_some_syscalls_compiled.json";
+pub const ERC20_CONTRACT_PATH: &str = "./ERC20/ERC20_Cairo0/ERC20_without_some_syscalls/ERC20/\
+                                       erc20_contract_without_some_syscalls_compiled.json";
 pub const ERC20_FULL_CONTRACT_PATH: &str =
     "./oz_erc20/target/dev/oz_erc20_Native.contract_class.json"; // REBASE NOTE: change name
 pub const TEST_CONTRACT_SIERRA_PATH: &str =
@@ -99,6 +100,13 @@ impl CairoVersion {
             TransactionVersion::ZERO | TransactionVersion::ONE => CairoVersion::Cairo0,
             TransactionVersion::TWO | TransactionVersion::THREE => CairoVersion::Cairo1,
             _ => panic!("Transaction version {:?} is not supported.", tx_version),
+        }
+    }
+
+    pub fn other(&self) -> Self {
+        match self {
+            Self::Cairo0 => Self::Cairo1,
+            Self::Cairo1 => Self::Cairo0,
         }
     }
 }
