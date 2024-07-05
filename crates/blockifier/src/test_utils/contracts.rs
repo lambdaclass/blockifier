@@ -1,16 +1,9 @@
-use starknet_api::core::{
-    ClassHash, CompiledClassHash, ContractAddress, EntryPointSelector, PatriciaKey,
-};
-use starknet_api::deprecated_contract_class::{
-    ContractClass as DeprecatedContractClass, EntryPointOffset, EntryPointType,
-};
+use starknet_api::core::{ClassHash, CompiledClassHash, ContractAddress, PatriciaKey};
+use starknet_api::deprecated_contract_class::ContractClass as DeprecatedContractClass;
 use starknet_api::hash::{StarkFelt, StarkHash};
 use starknet_api::{class_hash, contract_address, patricia_key, stark_felt};
-use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::abi::abi_utils::selector_from_name;
-use crate::abi::constants::CONSTRUCTOR_ENTRY_POINT_NAME;
 use crate::execution::contract_class::{
     ContractClass, ContractClassV0, ContractClassV1, SierraContractClassV1,
 };
@@ -94,17 +87,17 @@ impl FeatureContract {
         }
     }
 
-    fn has_two_versions(&self) -> bool {
-        match self {
-            Self::AccountWithLongValidate(_)
-            | Self::AccountWithoutValidations(_)
-            | Self::Empty(_)
-            | Self::FaultyAccount(_)
-            | Self::TestContract(_)
-            | Self::ERC20(_) => true,
-            Self::SecurityTests | Self::LegacyTestContract | Self::SierraTestContract => false,
-        }
-    }
+    // fn has_two_versions(&self) -> bool {
+    //     match self {
+    //         Self::AccountWithLongValidate(_)
+    //         | Self::AccountWithoutValidations(_)
+    //         | Self::Empty(_)
+    //         | Self::FaultyAccount(_)
+    //         | Self::TestContract(_)
+    //         | Self::ERC20(_) => true,
+    //         Self::SecurityTests | Self::LegacyTestContract | Self::SierraTestContract => false,
+    //     }
+    // }
 
     fn get_cairo_version_bit(&self) -> u32 {
         match self.cairo_version() {
@@ -232,68 +225,5 @@ impl FeatureContract {
 
     pub fn get_raw_class(&self) -> String {
         get_raw_contract_class(&self.get_compiled_path())
-    }
-
-    /// Fetch PC locations from the compiled contract to compute the expected PC locations in the
-    /// traceback. Computation is not robust, but as long as the cairo function itself is not
-    /// edited, this computation should be stable.
-    fn get_offset(
-        &self,
-        entry_point_selector: EntryPointSelector,
-        entry_point_type: EntryPointType,
-    ) -> EntryPointOffset {
-        match self.get_class() {
-            ContractClass::V0(class) => {
-                class
-                    .entry_points_by_type
-                    .get(&entry_point_type)
-                    .unwrap()
-                    .iter()
-                    .find(|ep| ep.selector == entry_point_selector)
-                    .unwrap()
-                    .offset
-            }
-            ContractClass::V1(class) => {
-                class
-                    .entry_points_by_type
-                    .get(&entry_point_type)
-                    .unwrap()
-                    .iter()
-                    .find(|ep| ep.selector == entry_point_selector)
-                    .unwrap()
-                    .offset
-            }
-            ContractClass::V1Sierra(_class) => todo!("get sierra constract class offset"),
-        }
-    }
-
-    pub fn get_entry_point_offset(
-        &self,
-        entry_point_selector: EntryPointSelector,
-    ) -> EntryPointOffset {
-        self.get_offset(entry_point_selector, EntryPointType::External)
-    }
-
-    pub fn get_ctor_offset(
-        &self,
-        entry_point_selector: Option<EntryPointSelector>,
-    ) -> EntryPointOffset {
-        let selector =
-            entry_point_selector.unwrap_or(selector_from_name(CONSTRUCTOR_ENTRY_POINT_NAME));
-        self.get_offset(selector, EntryPointType::Constructor)
-    }
-
-    pub fn all_contracts() -> impl Iterator<Item = Self> {
-        // EnumIter iterates over all variants with Default::default() as the cairo
-        // version.
-        Self::iter().flat_map(|contract| {
-            if contract.has_two_versions() {
-                let mut other_contract = contract;
-                other_contract.set_cairo_version(contract.cairo_version().other());
-                vec![contract, other_contract].into_iter()
-            } else {
-                vec![contract].into_iter()
-            }
-        })
     }
 }
