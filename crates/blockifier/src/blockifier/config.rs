@@ -2,6 +2,7 @@
 pub struct TransactionExecutorConfig {
     pub concurrency_config: ConcurrencyConfig,
 }
+#[cfg(any(test, feature = "testing"))]
 impl TransactionExecutorConfig {
     pub fn create_for_testing() -> Self {
         Self { concurrency_config: ConcurrencyConfig::create_for_testing() }
@@ -14,14 +15,14 @@ pub struct ConcurrencyConfig {
     pub n_workers: usize,
     pub chunk_size: usize,
 }
-#[cfg(all(any(test, feature = "testing"), not(feature = "concurrency")))]
+#[cfg(not(feature = "concurrency"))]
 impl ConcurrencyConfig {
     pub fn create_for_testing() -> Self {
         Self { enabled: false, n_workers: 0, chunk_size: 0 }
     }
 }
 
-#[cfg(all(any(test, feature = "testing"), feature = "concurrency"))]
+#[cfg(feature = "concurrency")]
 impl ConcurrencyConfig {
     pub fn create_for_testing() -> Self {
         Self { enabled: true, n_workers: 4, chunk_size: 64 }
