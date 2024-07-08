@@ -202,6 +202,34 @@ impl VersionedConstants {
     ) -> Self {
         Self { validate_max_n_steps, max_recursion_depth, ..Self::latest_constants().clone() }
     }
+
+    // TODO(Amos, 1/8/2024): Remove the explicit `validate_max_n_steps` & `max_recursion_depth`,
+    // they should be part of the general override.
+    /// `versioned_constants_base_overrides` are used if they are provided, otherwise the latest
+    /// versioned constants are used. `validate_max_n_steps` & `max_recursion_depth` override both.
+    pub fn get_versioned_constants(
+        versioned_constants_overrides: VersionedConstantsOverrides,
+    ) -> Self {
+        let VersionedConstantsOverrides {
+            validate_max_n_steps,
+            max_recursion_depth,
+            versioned_constants_base_overrides,
+        } = versioned_constants_overrides;
+        let base_overrides = match versioned_constants_base_overrides {
+            Some(versioned_constants_base_overrides) => {
+                log::debug!(
+                    "Using provided `versioned_constants_base_overrides` (with additional \
+                     overrides)."
+                );
+                versioned_constants_base_overrides
+            }
+            None => {
+                log::debug!("Using latest versioned constants (with additional overrides).");
+                Self::latest_constants().clone()
+            }
+        };
+        Self { validate_max_n_steps, max_recursion_depth, ..base_overrides }
+    }
 }
 
 impl TryFrom<&Path> for VersionedConstants {
@@ -375,6 +403,12 @@ impl OsResources {
     }
 
     fn os_kzg_da_resources(&self, data_segment_length: usize) -> ExecutionResources {
+        // BACKWARD COMPATIBILITY: we set compute_os_kzg_commitment_info to empty in older versions
+        // where this was not yet computed.
+        let empty_resources = ExecutionResources::default();
+        if self.compute_os_kzg_commitment_info == empty_resources {
+            return empty_resources;
+        }
         &(&self.compute_os_kzg_commitment_info * data_segment_length)
             + &poseidon_hash_many_cost(data_segment_length)
     }
@@ -435,6 +469,7 @@ pub struct GasCosts {
     pub secp256r1_new_gas_cost: u64,
     pub keccak_gas_cost: u64,
     pub keccak_round_cost_gas_cost: u64,
+    pub sha256_process_block_gas_cost: u64,
 }
 
 // Below, serde first deserializes the json into a regular IndexMap wrapped by the newtype
@@ -682,4 +717,10 @@ impl Default for ValidateRoundingConsts {
 pub struct ResourcesByVersion {
     pub resources: ResourcesParams,
     pub deprecated_resources: ResourcesParams,
+}
+
+pub struct VersionedConstantsOverrides {
+    pub validate_max_n_steps: u32,
+    pub max_recursion_depth: usize,
+    pub versioned_constants_base_overrides: Option<VersionedConstants>,
 }
