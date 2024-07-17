@@ -589,8 +589,8 @@ impl<'state> StarknetSyscallHandler for &mut NativeSyscallHandler<'state> {
         }
 
         Ok(U256 {
-            lo: u128::from(state[2]) | (u128::from(state[3]) << 64),
-            hi: u128::from(state[0]) | (u128::from(state[1]) << 64),
+            hi: u128::from(state[2]) | (u128::from(state[3]) << 64),
+            lo: u128::from(state[0]) | (u128::from(state[1]) << 64),
         })
     }
 
@@ -831,8 +831,8 @@ impl<'state> StarknetSyscallHandler for &mut NativeSyscallHandler<'state> {
     // }
 
     // fn set_account_contract_address(&mut self, _contract_address: Felt) {
-    //     todo!("Native syscall handler - set_account_contract_address") // unimplemented in cairo native
-    // }
+    //     todo!("Native syscall handler - set_account_contract_address") // unimplemented in cairo
+    // native }
 
     // fn set_block_number(&mut self, _block_number: u64) {
     //     todo!("Native syscall handler - set_block_number") // unimplemented in cairo native
