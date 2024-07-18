@@ -1,7 +1,6 @@
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::hash::RandomState;
-use std::rc::Rc;
+use std::sync::{OnceLock, RwLock};
 
 use ark_ec::short_weierstrass::SWCurveConfig;
 use ark_ff::{BigInt, PrimeField};
@@ -76,40 +75,50 @@ pub fn match_entrypoint(
 static NATIVE_CONTEXT: std::sync::OnceLock<cairo_native::context::NativeContext> =
     std::sync::OnceLock::new();
 
-pub fn get_native_aot_program_cache<'context>() -> Rc<RefCell<ProgramCache<'context, ClassHash>>> {
-    Rc::new(RefCell::new(ProgramCache::Aot(AotProgramCache::new(
-        NATIVE_CONTEXT.get_or_init(NativeContext::new),
-    ))))
+pub fn get_native_aot_program_cache() -> &'static RwLock<ProgramCache<'static, ClassHash>> {
+    static AOT_PROGRAM_CACHE: OnceLock<RwLock<ProgramCache<'static, ClassHash>>> = OnceLock::new();
+
+    let program_cache = AOT_PROGRAM_CACHE.get_or_init(|| {
+        RwLock::new(ProgramCache::Aot(AotProgramCache::new(
+            NATIVE_CONTEXT.get_or_init(NativeContext::new),
+        )))
+    });
+
+    &program_cache
 }
 
-pub fn get_native_jit_program_cache<'context>() -> Rc<RefCell<ProgramCache<'context, ClassHash>>> {
-    Rc::new(RefCell::new(ProgramCache::Jit(JitProgramCache::new(
-        NATIVE_CONTEXT.get_or_init(NativeContext::new),
-    ))))
+pub fn get_native_jit_program_cache() -> &'static RwLock<ProgramCache<'static, ClassHash>> {
+    static JIT_PROGRAM_CACHE: OnceLock<RwLock<ProgramCache<'static, ClassHash>>> = OnceLock::new();
+
+    let program_cache = JIT_PROGRAM_CACHE.get_or_init(|| {
+        RwLock::new(ProgramCache::Jit(JitProgramCache::new(
+            NATIVE_CONTEXT.get_or_init(NativeContext::new),
+        )))
+    });
+
+    &program_cache
 }
 
 pub fn get_native_executor<'context>(
     class_hash: ClassHash,
     program: &SierraProgram,
-    program_cache: Rc<RefCell<ProgramCache<'context, ClassHash>>>,
+    program_cache: &RwLock<ProgramCache<'context, ClassHash>>,
 ) -> NativeExecutor<'context> {
-    let program_cache = &mut (*program_cache.borrow_mut());
+    let native_executor = match &*program_cache.read().unwrap() {
+        ProgramCache::Aot(program_cache) => program_cache.get(&class_hash).map(NativeExecutor::Aot),
+        ProgramCache::Jit(program_cache) => program_cache.get(&class_hash).map(NativeExecutor::Jit),
+    };
 
-    match program_cache {
-        ProgramCache::Aot(cache) => {
-            let cached_executor = cache.get(&class_hash);
-            NativeExecutor::Aot(match cached_executor {
-                Some(executor) => executor,
-                None => cache.compile_and_insert(class_hash, program, OptLevel::Default),
-            })
-        }
-        ProgramCache::Jit(cache) => {
-            let cached_executor = cache.get(&class_hash);
-            NativeExecutor::Jit(match cached_executor {
-                Some(executor) => executor,
-                None => cache.compile_and_insert(class_hash, program, OptLevel::Default),
-            })
-        }
+    match native_executor {
+        Some(native_executor) => native_executor,
+        None => match &mut *program_cache.write().unwrap() {
+            ProgramCache::Aot(program_cache) => NativeExecutor::Aot(
+                program_cache.compile_and_insert(class_hash, program, OptLevel::Default),
+            ),
+            ProgramCache::Jit(program_cache) => NativeExecutor::Jit(
+                program_cache.compile_and_insert(class_hash, program, OptLevel::Default),
+            ),
+        },
     }
 }
 
@@ -159,7 +168,8 @@ pub fn run_native_executor(
             // dbg!("Executing AOT");
             // dbg!(&call.calldata.0);
             let calldata = stark_felts_to_native_felts(&call.calldata.0);
-            let _calldata_converted: Vec<String> = calldata.iter().map(|x| x.to_hex_string()).collect();
+            let _calldata_converted: Vec<String> =
+                calldata.iter().map(|x| x.to_hex_string()).collect();
             // dbg!(&calldata_converted);
             executor.invoke_contract_dynamic(
                 sierra_entry_function_id,
