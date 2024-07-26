@@ -47,8 +47,26 @@ pub fn execute_entry_point_call(
         context,
     );
 
+    dbg!(&call.class_hash);
+
     let sierra_entry_function_id =
         get_sierra_entry_function_id(matching_entrypoint, sierra_program);
 
-    run_native_executor(native_executor, sierra_entry_function_id, call, syscall_handler)
+    match run_native_executor(
+        native_executor,
+        sierra_entry_function_id,
+        call.clone(),
+        syscall_handler,
+    ) {
+        Ok(call_info) => {
+            dbg!(&call);
+            println!("OK!");
+            Ok(call_info)
+        }
+        Err(err) => {
+            dbg!(&call);
+            println!("ERR!");
+            Err(err)
+        }
+    }
 }
