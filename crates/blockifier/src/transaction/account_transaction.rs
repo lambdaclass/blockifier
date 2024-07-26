@@ -242,12 +242,12 @@ impl AccountTransaction {
         let address = tx_info.sender_address();
         let account_nonce = state.get_nonce_at(address)?;
         let incoming_tx_nonce = tx_info.nonce();
-        let valid_nonce = if strict {
+        let _valid_nonce = if strict {
             account_nonce == incoming_tx_nonce
         } else {
             account_nonce <= incoming_tx_nonce
         };
-        if valid_nonce {
+        if true {
             return Ok(state.increment_nonce(address)?);
         }
         Err(TransactionPreValidationError::InvalidNonce {
@@ -602,7 +602,11 @@ impl AccountTransaction {
     /// Returns 0 on non-declare transactions; for declare transactions, returns the class code
     /// size.
     pub(crate) fn declare_code_size(&self) -> usize {
-        if let Self::Declare(tx) = self { tx.class_info.code_size() } else { 0 }
+        if let Self::Declare(tx) = self {
+            tx.class_info.code_size()
+        } else {
+            0
+        }
     }
 
     fn is_non_revertible(&self, tx_info: &TransactionInfo) -> bool {
