@@ -110,7 +110,7 @@ fn deploy_erc20<S: StateReader>(
     let invoke_args = invoke_tx_args!(nonce, sender_address, max_fee: Fee(MAX_FEE), calldata);
     let block_context = &BlockContext::create_for_account_testing_with_kzg(false);
 
-    let execution = account_invoke_tx(invoke_args).execute(state, block_context, false, false)?;
+    let execution = account_invoke_tx(invoke_args).execute(state, block_context, false, true)?;
 
     dbg!(execution.revert_error.unwrap());
 
