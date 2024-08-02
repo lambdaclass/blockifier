@@ -68,5 +68,10 @@ path = "bench/blockifier_bench.rs"
 name = "blockifier_bench"
 harness = false
 
+[[bench]]
+path = "bench/yas.rs"
+name = "yas"
+harness = false
+
 [package.metadata.cargo-udeps.ignore]
 normal = ["cairo-native"]

@@ -1615,7 +1615,8 @@ fn test_valid_flag(
     let account_tx = account_invoke_tx(invoke_tx_args! {
         sender_address: account_contract.get_instance_address(0),
         calldata: create_trivial_calldata(test_contract.get_instance_address(0)),
-        max_fee: Fee(MAX_FEE)
+        max_fee: Fee(MAX_FEE),
+        version: TransactionVersion::ZERO
     });
 
     let actual_execution_info = account_tx.execute(state, block_context, true, false).unwrap();
