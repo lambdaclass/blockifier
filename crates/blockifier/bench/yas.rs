@@ -135,9 +135,9 @@ fn deploy_contract<S: StateReader>(
         signature: TransactionSignature(vec![])
     );
     let block_context = BlockContext::create_for_account_testing();
+    let fel = Felt::from_hex("0x00004661696c656420746f20646573657269616c697a6520706172616d202331")?;
+    dbg!("{}\n", String::from_utf8(fel.to_bytes_be().to_vec())?);
     let execution = account_invoke_tx(invoke_args).execute(state, &block_context, false, true)?;
-    let fel = Felt::from_bytes_be_slice("bytes".as_bytes());
-    String::from_utf8(fel.to_bytes_be().to_vec())?;
     dbg!(execution.revert_error.unwrap());
 
     let exec_call_info: blockifier::execution::call_info::CallInfo =
