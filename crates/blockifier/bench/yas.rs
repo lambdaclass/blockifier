@@ -17,27 +17,36 @@ use log::info;
 use starknet_api::{
     core::{ClassHash, ContractAddress},
     hash::StarkFelt,
-    transaction::{Calldata, Fee, TransactionSignature, TransactionVersion},
+    transaction::{Calldata, Fee, TransactionVersion},
 };
-use starknet_types_core::felt::Felt;
-use utils::{create_state, get_contract_hash, load_contract};
+use utils::{create_state, get_class_hash, get_compiled_class_hash, load_contract};
 
 pub const ACCOUNT_ADDRESS: u32 = 4321;
 pub const OWNER_ADDRESS: u32 = 4321;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = create_state()?;
+    let args: Vec<String> = std::env::args().collect();
+    let cairo_native = match &*args[0] {
+        "native" => true,
+        "vm" => false,
+        arg => {
+            info!("Not a valid mode: {}, using vm", arg);
+            false
+        }
+    };
+
+    let mut state = create_state(cairo_native)?;
     let account_address = ContractAddress(ACCOUNT_ADDRESS.into());
 
     // Declare ERC20, YASFactory, YASPool and YASRouter contracts.
     info!("Declaring the ERC20 contract.");
-    let erc20_class_hash = declare_contract(&mut state, "ERC20")?;
+    let erc20_class_hash = declare_contract(&mut state, "ERC20", cairo_native)?;
     info!("Declaring the YASFactory contract.");
-    let _yas_factory_class_hash = declare_contract(&mut state, "YASFactory")?;
+    let _yas_factory_class_hash = declare_contract(&mut state, "YASFactory", cairo_native)?;
     info!("Declaring the YASRouter contract.");
-    let _yas_router_class_hash = declare_contract(&mut state, "YASRouter")?;
+    let _yas_router_class_hash = declare_contract(&mut state, "YASRouter", cairo_native)?;
     info!("Declaring the YASPool contract.");
-    let _yas_pool_class_hash = declare_contract(&mut state, "YASPool")?;
+    let _yas_pool_class_hash = declare_contract(&mut state, "YASPool", cairo_native)?;
 
     // Deploys
 
@@ -96,19 +105,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn declare_contract<S: StateReader>(
     mut state: &mut CachedState<S>,
     contract_name: &str,
+    cairo_native: bool
 ) -> Result<ClassHash, Box<dyn std::error::Error>> {
-    let contract_class = load_contract(contract_name)?;
+    let contract_class = load_contract(contract_name, cairo_native)?;
     let block_context = &BlockContext::create_for_testing();
     let class_info = calculate_class_info_for_testing(contract_class);
     let sender_address = ContractAddress(ACCOUNT_ADDRESS.into());
-    let class_hash = get_contract_hash(contract_name)?;
+    let class_hash = get_class_hash(contract_name);
+    let compiled_class_hash = get_compiled_class_hash(contract_name);
     let nonce = state.get_nonce_at(sender_address)?;
     let declare_args = declare_tx_args! {
         max_fee: Fee(MAX_FEE),
         sender_address,
-        version: TransactionVersion::TWO,
+        version: TransactionVersion::THREE,
         resource_bounds: l1_resource_bounds(MAX_L1_GAS_AMOUNT, MAX_L1_GAS_PRICE),
         class_hash,
+        compiled_class_hash,
         nonce
     };
 
@@ -131,13 +143,11 @@ fn deploy_contract<S: StateReader>(
         sender_address, 
         max_fee: Fee(MAX_FEE), 
         calldata, 
-        version: TransactionVersion::ZERO, 
-        signature: TransactionSignature(vec![])
+        version: TransactionVersion::THREE,
     );
     let block_context = BlockContext::create_for_account_testing();
-    let fel = Felt::from_hex("0x00004661696c656420746f20646573657269616c697a6520706172616d202331")?;
-    dbg!("{}\n", String::from_utf8(fel.to_bytes_be().to_vec())?);
     let execution = account_invoke_tx(invoke_args).execute(state, &block_context, false, true)?;
+
     dbg!(execution.revert_error.unwrap());
 
     let exec_call_info: blockifier::execution::call_info::CallInfo =
@@ -151,13 +161,11 @@ mod utils {
     use std::{collections::HashMap, fs, path::Path};
 
     use blockifier::{
-        execution::contract_class::{ContractClass, ContractClassV1, SierraContractClassV1},
-        state::cached_state::CachedState,
-        test_utils::dict_state_reader::DictStateReader,
+        compiled_class_hash, execution::contract_class::{ContractClass, ContractClassV1, SierraContractClassV1}, state::cached_state::CachedState, test_utils::dict_state_reader::DictStateReader
     };
     use starknet_api::{
         class_hash,
-        core::{ClassHash, ContractAddress, Nonce},
+        core::{ClassHash, CompiledClassHash, ContractAddress, Nonce},
         hash::{StarkFelt, StarkHash},
     };
 
@@ -171,7 +179,11 @@ mod utils {
     const YAS_ROUTER_BASE: u32 = 4 * CLASS_HASH_BASE;
     const YAS_ERC_BASE: u32 = 5 * CLASS_HASH_BASE;
 
-    pub fn get_contract_hash(contract: &str) -> Result<ClassHash, Box<dyn std::error::Error>> {
+    pub fn get_class_hash(contract: &str) -> ClassHash {
+        class_hash!(integer_base(contract))
+    }
+
+    fn integer_base(contract: &str) -> u32 {
         let cairo1_bit = 1 << 31_i32;
         let base = match contract {
             "YasCustomAccount" => YAS_CUSTOM_ACCOUNT_BASE,
@@ -179,37 +191,44 @@ mod utils {
             "YASFactory" => YAS_FACTORY_BASE,
             "YASPool" => YAS_POOL_BASE,
             "YASRouter" => YAS_ROUTER_BASE,
-            _ => 1,
+            name => panic!("Not valied contract name: {}", name),
         };
 
-        Ok(class_hash!(base + cairo1_bit))
+        base + cairo1_bit
     }
 
-    pub fn create_state() -> Result<CachedState<DictStateReader>, Box<dyn std::error::Error>> {
+    pub fn get_compiled_class_hash(contract: &str) -> CompiledClassHash {
+        compiled_class_hash!(integer_base(contract))
+    }
+
+    pub fn create_state(cairo_native: bool) -> Result<CachedState<DictStateReader>, Box<dyn std::error::Error>> {
         let mut class_hash_to_class = HashMap::new();
         let mut address_to_class_hash = HashMap::new();
         let mut address_to_nonce = HashMap::new();
+        let mut class_hash_to_compiled_class_hash = HashMap::new();
 
-        let contract_class = load_contract("YasCustomAccount")?;
-        let class_hash = get_contract_hash("YasCustomAccount")?;
-
+        let contract_class = load_contract("YasCustomAccount", cairo_native)?;
+        let class_hash = get_class_hash("YasCustomAccount");
+        let compiled_class_hash = get_compiled_class_hash("YasCustomAccount");
+        
         address_to_class_hash.insert(ContractAddress(ACCOUNT_ADDRESS.into()), class_hash);
         class_hash_to_class.insert(class_hash, contract_class);
         address_to_nonce
             .insert(ContractAddress(ACCOUNT_ADDRESS.into()), Nonce(StarkFelt::from_u128(1)));
+        class_hash_to_compiled_class_hash.insert(class_hash, compiled_class_hash);
 
         let state_reader = DictStateReader {
             class_hash_to_class,
             address_to_class_hash,
             address_to_nonce,
+            class_hash_to_compiled_class_hash,
             ..Default::default()
         };
 
         Ok(CachedState::new(state_reader))
     }
 
-    pub fn load_contract(name: &str) -> Result<ContractClass, Box<dyn std::error::Error>> {
-        let cairo_native = false;
+    pub fn load_contract(name: &str, cairo_native: bool) -> Result<ContractClass, Box<dyn std::error::Error>> {
         let path = Path::new(BENCH_YAS).join(name);
 
         if !cairo_native {
