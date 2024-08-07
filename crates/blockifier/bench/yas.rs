@@ -1,37 +1,46 @@
+use std::{sync::Arc, time::{Duration, Instant}, u64};
+
 use blockifier::{
     abi::abi_utils::selector_from_name,
-    context::BlockContext,
+    context::{BlockContext, TransactionContext},
     declare_tx_args,
-    execution::native::utils::stark_felt_to_native_felt,
-    invoke_tx_args,
+    execution::{
+        common_hints::ExecutionMode,
+        entry_point::{CallEntryPoint, CallType, EntryPointExecutionContext},
+        execution_utils::execute_entry_point_call,
+        native::utils::{native_felt_to_stark_felt, stark_felt_to_native_felt},
+    },
     state::{cached_state::CachedState, state_api::StateReader},
     test_utils::{
-        create_calldata, declare::declare_tx, deploy_contract, dict_state_reader::DictStateReader,
-        MAX_FEE, MAX_L1_GAS_AMOUNT, MAX_L1_GAS_PRICE,
+        declare::declare_tx, deploy_contract, dict_state_reader::DictStateReader, MAX_FEE,
+        MAX_L1_GAS_AMOUNT, MAX_L1_GAS_PRICE,
     },
     transaction::{
-        test_utils::{calculate_class_info_for_testing, l1_resource_bounds, run_invoke_tx},
+        objects::TransactionInfo,
+        test_utils::{calculate_class_info_for_testing, l1_resource_bounds},
         transactions::ExecutableTransaction,
     },
 };
 use log::info;
-use num_traits::FromPrimitive;
 use starknet_api::{
     core::{ClassHash, ContractAddress},
+    deprecated_contract_class::EntryPointType,
     hash::StarkFelt,
-    transaction::{Fee, TransactionVersion},
+    transaction::{Calldata, Fee, TransactionVersion},
 };
 use starknet_types_core::felt::Felt;
-use utils::{create_state, get_class_hash, get_compiled_class_hash, load_contract};
+use utils::{create_state, get_balance, get_class_hash, load_contract};
 
 pub const ACCOUNT_ADDRESS: u32 = 4321;
 pub const OWNER_ADDRESS: u32 = 4321;
+const WARMUP_TIME: Duration = Duration::from_secs(3);
+const BENCHMARK_TIME: Duration = Duration::from_secs(5);
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
-    let cairo_native = match &*args[0] {
+    let cairo_native = match &*args[1] {
         "native" => true,
-        "vm" => false,
+        "vm" | "" => false,
         arg => {
             info!("Not a valid mode: {}, using vm", arg);
             false
@@ -39,7 +48,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut state = create_state(cairo_native)?;
-    let account_address = ContractAddress(ACCOUNT_ADDRESS.into());
 
     // Declare ERC20, YASFactory, YASPool and YASRouter contracts.
     dbg!("Declaring the ERC20 contract.");
@@ -56,44 +64,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Deploy two ERC20 contracts.
     let name = Felt::from_bytes_be_slice("TYAS0".as_bytes());
     let symbol = Felt::from_bytes_be_slice("$YAS0".as_bytes());
-    let _nonce = state.get_nonce_at(account_address)?;
-
-    let calldata =
-        vec![name, symbol, 0x3782_dace_9d90_0000_u128.into(), 0_u128.into(), OWNER_ADDRESS.into()];
 
     dbg!("Deploying TYAS0 token on ERC20.");
+    let calldata =
+        vec![name, symbol, 0x3782_dace_9d90_0000_u128.into(), 0_u128.into(), OWNER_ADDRESS.into()];
     let yas0_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
     let name = Felt::from_bytes_be_slice("TYAS1".as_bytes());
     let symbol = Felt::from_bytes_be_slice("$YAS1".as_bytes());
-    let _nonce = state.get_nonce_at(account_address)?;
-
-    let calldata =
-        vec![name, symbol, 0x3782_dace_9d90_0000_u128.into(), 0_u128.into(), OWNER_ADDRESS.into()];
 
     dbg!("Deploying TYAS1 token on ERC20.");
+    let calldata =
+        vec![name, symbol, 0x3782_dace_9d90_0000_u128.into(), 0_u128.into(), OWNER_ADDRESS.into()];
     let yas1_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
-    let calldata = vec![stark_felt_to_native_felt(yas_pool_class_hash.0), OWNER_ADDRESS.into()];
-
     dbg!("Deploying YASFactory contract.");
+    let calldata = vec![OWNER_ADDRESS.into(), stark_felt_to_native_felt(yas_pool_class_hash.0)];
     let yas_factory_address = tx_deploy_contract(
         &mut state,
         &calldata,
         stark_felt_to_native_felt(yas_factory_class_hash.0),
     )?;
 
-    let calldata = vec![];
-
     dbg!("Deploying YASRouter contract.");
-    let _yas_router_address = tx_deploy_contract(
+    let calldata = vec![];
+    let yas_router_address = tx_deploy_contract(
         &mut state,
         &calldata,
         stark_felt_to_native_felt(yas_router_class_hash.0),
     )?;
 
+    dbg!("Deploying YASPool contract.");
     let calldata = vec![
         yas_factory_address,
         yas0_token_address,
@@ -102,21 +105,120 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         0x3c.into(),
         0.into(),
     ];
-
-    dbg!("Deploying YASPool contract.");
-    let _yas_factory_address = tx_deploy_contract(
+    let yas_pool_address = tx_deploy_contract(
         &mut state,
         &calldata,
         stark_felt_to_native_felt(yas_pool_class_hash.0),
     )?;
 
     dbg!("Initializing Pool");
-    initialize_pool(
-        &mut state,
-        yas_pool_class_hash.0,
-        (79_228_162_514_263_337_593543_950_336, 0),
-        false,
-    )?;
+    let calldata = Calldata(
+        vec![
+            79_228_162_514_264_337_593_543_950_336_u128.into(),
+            0_u128.into(),
+            u32::from(false).into(),
+        ]
+        .into(),
+    );
+    invoke_func(&mut state, "initialize", yas_pool_address, calldata)?;
+
+    dbg!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
+
+    dbg!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
+
+    dbg!("Approving tokens");
+    let calldata = Calldata(
+        vec![
+            native_felt_to_stark_felt(yas_router_address),
+            u128::MAX.into(),
+            u128::MAX.into(),
+        ]
+        .into(),
+    );
+    invoke_func(&mut state, "approve", yas0_token_address, calldata)?;
+
+    let calldata = Calldata(
+        vec![
+            native_felt_to_stark_felt(yas_router_address),
+            u128::MAX.into(),
+            u128::MAX.into(),
+        ]
+        .into(),
+    );
+    invoke_func(&mut state, "approve", yas1_token_address, calldata)?;
+
+    dbg!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
+
+    dbg!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
+
+    dbg!("Minting tokens.");
+    let tick_lower = -887_220_i32;
+    let tick_upper = 887_220_i32;
+
+    let calldata = Calldata(
+        vec![
+            native_felt_to_stark_felt(yas_pool_address),
+            OWNER_ADDRESS.into(),
+            tick_lower.unsigned_abs().into(),
+            u32::from(tick_lower.is_negative()).into(),
+            tick_upper.unsigned_abs().into(),
+            u32::from(tick_upper.is_negative()).into(),
+            0_u32.into()//2_000_000_000_000_000_000_u128.into(),
+        ]
+        .into(),
+    );
+    invoke_func(&mut state, "mint", yas_router_address, calldata.clone())?;
+
+    let calldata = Calldata(
+        vec![
+            native_felt_to_stark_felt(yas_pool_address),
+            OWNER_ADDRESS.into(),
+            u32::from(true).into(),
+            500_000_000_000_000_000_u64.into(),
+            0_u32.into(),
+            u32::from(true).into(),
+            4_295_128_740_u64.into(),
+            0_u32.into(),
+            u32::from(false).into()
+        ]
+        .into(),
+    );
+    let mut delta_t = Duration::ZERO;
+    let mut runs = 0;
+
+    loop {
+        dbg!("Swapping tokens");
+        let t0 = Instant::now();
+        invoke_func(&mut state, "swap", yas_pool_address, calldata.clone())?;
+        let t1 = Instant::now();
+
+        delta_t += t1.duration_since(t0);
+
+        if delta_t >= WARMUP_TIME {
+            runs += 1;
+
+            if delta_t >= (WARMUP_TIME + BENCHMARK_TIME) {
+                break;
+            }
+        }
+    }
+    let delta_t = (delta_t - WARMUP_TIME).as_secs_f64();
+    let bench_mode = if cairo_native {
+        "Cario Native"
+    } else {
+        "Cairo VM"
+    };
+
+    println!(
+        "[{}] Executed {runs} swaps taking {delta_t} seconds ({} #/s, or {} s/#): benchmark",
+        bench_mode,
+        f64::from(runs) / delta_t,
+        delta_t / f64::from(runs),
+    );
+
+    dbg!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
+
+    dbg!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
 
     Ok(())
 }
@@ -131,7 +233,6 @@ fn declare_contract<S: StateReader>(
     let class_info = calculate_class_info_for_testing(contract_class);
     let sender_address = ContractAddress(ACCOUNT_ADDRESS.into());
     let class_hash = get_class_hash(contract_name);
-    let compiled_class_hash = get_compiled_class_hash(contract_name);
     let nonce = state.get_nonce_at(sender_address)?;
     let declare_args = declare_tx_args! {
         max_fee: Fee(MAX_FEE),
@@ -139,7 +240,6 @@ fn declare_contract<S: StateReader>(
         version: TransactionVersion::THREE,
         resource_bounds: l1_resource_bounds(MAX_L1_GAS_AMOUNT, MAX_L1_GAS_PRICE),
         class_hash,
-        compiled_class_hash,
         nonce
     };
 
@@ -156,38 +256,59 @@ fn tx_deploy_contract<S: StateReader>(
     calldata: &[Felt],
     class_hash: Felt,
 ) -> Result<Felt, Box<dyn std::error::Error>> {
+    let salt = state.get_nonce_at(ContractAddress(ACCOUNT_ADDRESS.into()))?;
+    let salt = stark_felt_to_native_felt(salt.0);
     let (address, _): (Felt, Vec<Felt>) =
-        deploy_contract(state, class_hash, Felt::from_i8(0).unwrap(), calldata).unwrap();
+        deploy_contract(state, class_hash, salt, calldata).unwrap();
 
     Ok(address)
 }
 
-fn initialize_pool(
+fn invoke_func(
     state: &mut CachedState<DictStateReader>,
-    pool_address: StarkFelt,
-    price_sqrt: (u128, u128),
-    sign: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let sender_address = ContractAddress(ACCOUNT_ADDRESS.into());
-    let nonce = state.get_nonce_at(sender_address)?;
-    let calldata = create_calldata(
-        sender_address,
-        "__execute__",
-        &[
-            1_u32.into(),
-            pool_address,
-            selector_from_name("initialize").0,
-            price_sqrt.0.into(),
-            price_sqrt.1.into(),
-            u32::from(sign).into(),
-        ],
-    );
-    let args = invoke_tx_args!(nonce, sender_address, max_fee: Fee::default(), version: TransactionVersion::ONE, calldata);
-    let block_context = BlockContext::create_for_account_testing();
+    entry_point: &str,
+    contract_address: Felt,
+    calldata: Calldata,
+) -> Result<Vec<StarkFelt>, Box<dyn std::error::Error>> {
+    let caller_address = ContractAddress(ACCOUNT_ADDRESS.into());
+    let contract_address = ContractAddress(native_felt_to_stark_felt(contract_address).try_into()?);
+    let mut context = EntryPointExecutionContext::new(
+        Arc::new(TransactionContext {
+            block_context: BlockContext::create_for_testing(),
+            tx_info: TransactionInfo::Current(Default::default()),
+        }),
+        ExecutionMode::Execute,
+        false,
+    )
+    .unwrap();
 
-    run_invoke_tx(state, &block_context, args)?;
+    let class_hash = state.get_class_hash_at(contract_address)?;
+    let contract_class = state.get_compiled_contract_class(class_hash)?;
+    let call = CallEntryPoint {
+        class_hash: Some(class_hash),
+        caller_address,
+        code_address: Some(contract_address),
+        entry_point_type: EntryPointType::External,
+        entry_point_selector: selector_from_name(entry_point),
+        calldata,
+        storage_address: caller_address,
+        call_type: CallType::Call,
+        initial_gas: u64::MAX,
+    };
 
-    Ok(())
+    let call_info = execute_entry_point_call(
+        call,
+        contract_class,
+        state,
+        &mut Default::default(),
+        &mut context,
+    )
+    .map_err(|e| e.to_string())
+    .unwrap();
+
+    let return_data = call_info.execution.retdata.0;
+
+    Ok(return_data)
 }
 
 mod utils {
@@ -195,17 +316,23 @@ mod utils {
 
     use blockifier::{
         compiled_class_hash,
-        execution::contract_class::{ContractClass, ContractClassV1, SierraContractClassV1},
-        state::cached_state::CachedState,
+        execution::{
+            contract_class::{ContractClass, ContractClassV1, SierraContractClassV1},
+            execution_utils::felt_to_stark_felt,
+            native::utils::native_felt_to_stark_felt,
+        },
+        state::{cached_state::CachedState, state_api::StateReader},
         test_utils::dict_state_reader::DictStateReader,
     };
+    use cairo_felt::Felt252;
     use starknet_api::{
         class_hash,
         core::{ClassHash, CompiledClassHash, ContractAddress, Nonce},
         hash::{StarkFelt, StarkHash},
     };
+    use starknet_types_core::felt::Felt;
 
-    use crate::ACCOUNT_ADDRESS;
+    use crate::{ACCOUNT_ADDRESS, OWNER_ADDRESS};
 
     const BENCH_YAS: &str = "bench/yas/";
     const CLASS_HASH_BASE: u32 = 1 << 16;
@@ -235,6 +362,23 @@ mod utils {
 
     pub fn get_compiled_class_hash(contract: &str) -> CompiledClassHash {
         compiled_class_hash!(integer_base(contract))
+    }
+
+    pub fn get_balance<S: StateReader>(
+        state: &mut CachedState<S>,
+        token_address: Felt,
+    ) -> Result<StarkFelt, Box<dyn std::error::Error>> {
+        let (low, high) = state.get_fee_token_balance(
+            ContractAddress(OWNER_ADDRESS.into()),
+            ContractAddress(native_felt_to_stark_felt(token_address).try_into()?),
+        )?;
+
+        let low = &low.bytes()[15..];
+        let high = &high.bytes()[15..];
+
+        let balance = felt_to_stark_felt(&Felt252::from_bytes_be(&[low, high].concat()));
+
+        Ok(balance)
     }
 
     pub fn create_state(
