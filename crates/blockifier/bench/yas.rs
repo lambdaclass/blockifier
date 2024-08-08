@@ -1,3 +1,10 @@
+/*
+    Usage:
+        * There are two modes of running: vm and native, which should be specifided as args
+        * Example: (being at the blockifier's root)
+            cargo bench --bench yas vm 
+*/
+
 use std::{sync::Arc, time::{Duration, Instant}, u64};
 
 use blockifier::{
