@@ -1,12 +1,19 @@
 /*
     Usage:
         * There are two modes of running: vm and native, which should be specifided as args
-        * Example: (being at the blockifier's root)
+        * Example with VM:
             cargo bench --bench yas vm
+        * Emple with native:
+            cargo bench --features native_jit --bench yas native (cairo native JIT)
+            cargo bench --bench yas native (cairo native AOT)
         * If no args were specifided then vm would be used
 */
 
-use std::{sync::Arc, time::{Duration, Instant}, u64};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+    u64,
+};
 
 use blockifier::{
     abi::abi_utils::selector_from_name,
@@ -57,7 +64,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut state = create_state(cairo_native)?;
 
-    // Declares 
+    // Declares
 
     info!("Declaring the ERC20 contract.");
     let erc20_class_hash = declare_contract(&mut state, "ERC20", cairo_native)?;
@@ -75,8 +82,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let symbol = Felt::from_bytes_be_slice("$YAS0".as_bytes());
 
     info!("Deploying TYAS0 token on ERC20.");
-    let calldata =
-    vec![name, symbol, 0_u128.into(), 0x9876_dace_9d90_0000_0000_u128.into(), OWNER_ADDRESS.into()];
+    let calldata = vec![
+        name,
+        symbol,
+        0_u128.into(),
+        0x9876_dace_9d90_0000_0000_u128.into(),
+        OWNER_ADDRESS.into(),
+    ];
     let yas0_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
@@ -84,12 +96,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let symbol = Felt::from_bytes_be_slice("$YAS1".as_bytes());
 
     info!("Deploying TYAS1 token on ERC20.");
-    let calldata =
-        vec![name, symbol, 0_u128.into(), 0x9876_dace_9d90_0000_0000_u128.into(), OWNER_ADDRESS.into()];
+    let calldata = vec![
+        name,
+        symbol,
+        0_u128.into(),
+        0x9876_dace_9d90_0000_0000_u128.into(),
+        OWNER_ADDRESS.into(),
+    ];
     let yas1_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
-        info!("Deploying YASFactory contract.");
+    info!("Deploying YASFactory contract.");
     let calldata = vec![OWNER_ADDRESS.into(), stark_felt_to_native_felt(yas_pool_class_hash.0)];
     let yas_factory_address = tx_deploy_contract(
         &mut state,
@@ -135,22 +152,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Approving tokens");
     let calldata = Calldata(
-        vec![
-            native_felt_to_stark_felt(yas_router_address),
-            u128::MAX.into(),
-            u128::MAX.into(),
-        ]
-        .into(),
+        vec![native_felt_to_stark_felt(yas_router_address), u128::MAX.into(), u128::MAX.into()]
+            .into(),
     );
     invoke_func(&mut state, "approve", yas0_token_address, calldata)?;
 
     let calldata = Calldata(
-        vec![
-            native_felt_to_stark_felt(yas_router_address),
-            u128::MAX.into(),
-            u128::MAX.into(),
-        ]
-        .into(),
+        vec![native_felt_to_stark_felt(yas_router_address), u128::MAX.into(), u128::MAX.into()]
+            .into(),
     );
     invoke_func(&mut state, "approve", yas1_token_address, calldata)?;
 
@@ -190,7 +199,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 u32::from(true).into(),
                 4_295_128_740_u128.into(),
                 0_u32.into(),
-                u32::from(false).into()
+                u32::from(false).into(),
             ]
             .into(),
         );
@@ -212,7 +221,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let delta_t = (delta_t - WARMUP_TIME).as_secs_f64();
     let bench_mode = if cairo_native {
-        "Cario Native"
+        #[cfg(not(feature = "native_jit"))]
+        {
+            "Cario Native AOT"
+        }
+        #[cfg(feature = "native_jit")]
+        {
+            "Cario Native JIT"
+        }
     } else {
         "Cairo VM"
     };

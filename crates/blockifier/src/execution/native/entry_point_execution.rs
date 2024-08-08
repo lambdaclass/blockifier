@@ -4,9 +4,9 @@ use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 use starknet_api::core::ClassHash;
 
 use super::syscall_handler::NativeSyscallHandler;
+#[allow(unused_imports)]
 use super::utils::{
-    get_native_aot_program_cache, get_native_executor, get_sierra_entry_function_id,
-    match_entrypoint, run_native_executor,
+    get_native_aot_program_cache, get_native_executor, get_native_jit_program_cache, get_sierra_entry_function_id, match_entrypoint, run_native_executor
 };
 use crate::execution::call_info::CallInfo;
 use crate::execution::contract_class::SierraContractClassV1;
@@ -29,7 +29,10 @@ pub fn execute_entry_point_call(
     let matching_entrypoint =
         match_entrypoint(call.entry_point_type, call.entry_point_selector, contract_entrypoints)?;
 
+    #[cfg(not(feature = "native_jit"))]
     let program_cache = get_native_aot_program_cache();
+    #[cfg(feature = "native_jit")]
+    let program_cache = get_native_jit_program_cache();
 
     let code_class_hash: ClassHash =
         call.class_hash.ok_or(EntryPointExecutionError::NativeExecutionError {
