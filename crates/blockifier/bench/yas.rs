@@ -21,7 +21,7 @@ use blockifier::{
         transactions::ExecutableTransaction,
     },
 };
-use log::info;
+use log::{debug, info};
 use starknet_api::{
     core::{ClassHash, ContractAddress},
     deprecated_contract_class::EntryPointType,
@@ -50,13 +50,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = create_state(cairo_native)?;
 
     // Declare ERC20, YASFactory, YASPool and YASRouter contracts.
-    dbg!("Declaring the ERC20 contract.");
+    info!("Declaring the ERC20 contract.");
     let erc20_class_hash = declare_contract(&mut state, "ERC20", cairo_native)?;
-    dbg!("Declaring the YASFactory contract.");
+    info!("Declaring the YASFactory contract.");
     let yas_factory_class_hash = declare_contract(&mut state, "YASFactory", cairo_native)?;
-    dbg!("Declaring the YASRouter contract.");
+    info!("Declaring the YASRouter contract.");
     let yas_router_class_hash = declare_contract(&mut state, "YASRouter", cairo_native)?;
-    dbg!("Declaring the YASPool contract.");
+    info!("Declaring the YASPool contract.");
     let yas_pool_class_hash = declare_contract(&mut state, "YASPool", cairo_native)?;
 
     // Deploys
@@ -65,22 +65,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let name = Felt::from_bytes_be_slice("TYAS0".as_bytes());
     let symbol = Felt::from_bytes_be_slice("$YAS0".as_bytes());
 
-    dbg!("Deploying TYAS0 token on ERC20.");
+    info!("Deploying TYAS0 token on ERC20.");
     let calldata =
-        vec![name, symbol, 0x3782_dace_9d90_0000_u128.into(), 0_u128.into(), OWNER_ADDRESS.into()];
+    vec![name, symbol, 0_u128.into(), 0x3782_dace_9d90_0000_u128.into(), OWNER_ADDRESS.into()];
     let yas0_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
     let name = Felt::from_bytes_be_slice("TYAS1".as_bytes());
     let symbol = Felt::from_bytes_be_slice("$YAS1".as_bytes());
 
-    dbg!("Deploying TYAS1 token on ERC20.");
+    info!("Deploying TYAS1 token on ERC20.");
     let calldata =
-        vec![name, symbol, 0x3782_dace_9d90_0000_u128.into(), 0_u128.into(), OWNER_ADDRESS.into()];
+        vec![name, symbol, 0_u128.into(), 0x3782_dace_9d90_0000_u128.into(), OWNER_ADDRESS.into()];
     let yas1_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
-    dbg!("Deploying YASFactory contract.");
+        info!("Deploying YASFactory contract.");
     let calldata = vec![OWNER_ADDRESS.into(), stark_felt_to_native_felt(yas_pool_class_hash.0)];
     let yas_factory_address = tx_deploy_contract(
         &mut state,
@@ -88,7 +88,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         stark_felt_to_native_felt(yas_factory_class_hash.0),
     )?;
 
-    dbg!("Deploying YASRouter contract.");
+    info!("Deploying YASRouter contract.");
     let calldata = vec![];
     let yas_router_address = tx_deploy_contract(
         &mut state,
@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         stark_felt_to_native_felt(yas_router_class_hash.0),
     )?;
 
-    dbg!("Deploying YASPool contract.");
+    info!("Deploying YASPool contract.");
     let calldata = vec![
         yas_factory_address,
         yas0_token_address,
@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         stark_felt_to_native_felt(yas_pool_class_hash.0),
     )?;
 
-    dbg!("Initializing Pool");
+    info!("Initializing Pool");
     let calldata = Calldata(
         vec![
             79_228_162_514_264_337_593_543_950_336_u128.into(),
@@ -122,11 +122,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     invoke_func(&mut state, "initialize", yas_pool_address, calldata)?;
 
-    dbg!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
+    debug!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
 
-    dbg!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
+    debug!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
 
-    dbg!("Approving tokens");
+    info!("Approving tokens");
     let calldata = Calldata(
         vec![
             native_felt_to_stark_felt(yas_router_address),
@@ -147,11 +147,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     invoke_func(&mut state, "approve", yas1_token_address, calldata)?;
 
-    dbg!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
+    debug!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
 
-    dbg!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
+    debug!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
 
-    dbg!("Minting tokens.");
+    info!("Minting tokens.");
     let tick_lower = -887_220_i32;
     let tick_upper = 887_220_i32;
 
@@ -163,33 +163,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             u32::from(tick_lower.is_negative()).into(),
             tick_upper.unsigned_abs().into(),
             u32::from(tick_upper.is_negative()).into(),
-            0_u32.into()//2_000_000_000_000_000_000_u128.into(),
+            2_000_000_000_000_000_000_u128.into(),
         ]
         .into(),
     );
     invoke_func(&mut state, "mint", yas_router_address, calldata.clone())?;
 
-    let calldata = Calldata(
-        vec![
-            native_felt_to_stark_felt(yas_pool_address),
-            OWNER_ADDRESS.into(),
-            u32::from(true).into(),
-            500_000_000_000_000_000_u64.into(),
-            0_u32.into(),
-            u32::from(true).into(),
-            4_295_128_740_u64.into(),
-            0_u32.into(),
-            u32::from(false).into()
-        ]
-        .into(),
-    );
     let mut delta_t = Duration::ZERO;
     let mut runs = 0;
 
     loop {
-        dbg!("Swapping tokens");
+        let calldata = Calldata(
+            vec![
+                native_felt_to_stark_felt(yas_pool_address),
+                OWNER_ADDRESS.into(),
+                u32::from(true).into(),
+                500_000_000_000_000_u128.into(),
+                0_u32.into(),
+                u32::from(true).into(),
+                4_295_128_740_u128.into(),
+                0_u32.into(),
+                u32::from(false).into()
+            ]
+            .into(),
+        );
+
+        info!("Swapping tokens");
         let t0 = Instant::now();
-        invoke_func(&mut state, "swap", yas_pool_address, calldata.clone())?;
+        invoke_func(&mut state, "swap", yas_router_address, calldata)?;
         let t1 = Instant::now();
 
         delta_t += t1.duration_since(t0);
@@ -216,9 +217,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         delta_t / f64::from(runs),
     );
 
-    dbg!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
+    debug!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
 
-    dbg!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
+    debug!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
 
     Ok(())
 }
@@ -291,7 +292,7 @@ fn invoke_func(
         entry_point_type: EntryPointType::External,
         entry_point_selector: selector_from_name(entry_point),
         calldata,
-        storage_address: caller_address,
+        storage_address: contract_address,
         call_type: CallType::Call,
         initial_gas: u64::MAX,
     };
