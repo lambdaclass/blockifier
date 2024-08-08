@@ -57,7 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut state = create_state(cairo_native)?;
 
-    // Declare ERC20, YASFactory, YASPool and YASRouter contracts.
+    // Declares 
+
     info!("Declaring the ERC20 contract.");
     let erc20_class_hash = declare_contract(&mut state, "ERC20", cairo_native)?;
     info!("Declaring the YASFactory contract.");
@@ -119,6 +120,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         stark_felt_to_native_felt(yas_pool_class_hash.0),
     )?;
 
+    // Invokes
+
     info!("Initializing Pool");
     let calldata = Calldata(
         vec![
@@ -129,10 +132,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into(),
     );
     invoke_func(&mut state, "initialize", yas_pool_address, calldata)?;
-
-    debug!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
-
-    debug!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
 
     info!("Approving tokens");
     let calldata = Calldata(
@@ -155,10 +154,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     invoke_func(&mut state, "approve", yas1_token_address, calldata)?;
 
-    debug!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
-
-    debug!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
-
     info!("Minting tokens.");
     let tick_lower = -887_220_i32;
     let tick_upper = 887_220_i32;
@@ -176,6 +171,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .into(),
     );
     invoke_func(&mut state, "mint", yas_router_address, calldata.clone())?;
+
+    debug!("TYAS0 balance: {}: ", get_balance(&mut state, yas0_token_address)?);
+
+    debug!("TYAS1 balance: {}: ", get_balance(&mut state, yas1_token_address)?);
 
     let mut delta_t = Duration::ZERO;
     let mut runs = 0;
@@ -324,7 +323,6 @@ mod utils {
     use std::{collections::HashMap, fs, path::Path};
 
     use blockifier::{
-        compiled_class_hash,
         execution::{
             contract_class::{ContractClass, ContractClassV1, SierraContractClassV1},
             execution_utils::felt_to_stark_felt,
@@ -336,7 +334,7 @@ mod utils {
     use cairo_felt::Felt252;
     use starknet_api::{
         class_hash,
-        core::{ClassHash, CompiledClassHash, ContractAddress, Nonce},
+        core::{ClassHash, ContractAddress, Nonce},
         hash::{StarkFelt, StarkHash},
     };
     use starknet_types_core::felt::Felt;
@@ -369,10 +367,6 @@ mod utils {
         base + cairo1_bit
     }
 
-    pub fn get_compiled_class_hash(contract: &str) -> CompiledClassHash {
-        compiled_class_hash!(integer_base(contract))
-    }
-
     pub fn get_balance<S: StateReader>(
         state: &mut CachedState<S>,
         token_address: Felt,
@@ -396,23 +390,19 @@ mod utils {
         let mut class_hash_to_class = HashMap::new();
         let mut address_to_class_hash = HashMap::new();
         let mut address_to_nonce = HashMap::new();
-        let mut class_hash_to_compiled_class_hash = HashMap::new();
 
         let contract_class = load_contract("YasCustomAccount", cairo_native)?;
         let class_hash = get_class_hash("YasCustomAccount");
-        let compiled_class_hash = get_compiled_class_hash("YasCustomAccount");
 
         address_to_class_hash.insert(ContractAddress(ACCOUNT_ADDRESS.into()), class_hash);
         class_hash_to_class.insert(class_hash, contract_class);
         address_to_nonce
             .insert(ContractAddress(ACCOUNT_ADDRESS.into()), Nonce(StarkFelt::from_u128(1)));
-        class_hash_to_compiled_class_hash.insert(class_hash, compiled_class_hash);
 
         let state_reader = DictStateReader {
             class_hash_to_class,
             address_to_class_hash,
             address_to_nonce,
-            class_hash_to_compiled_class_hash,
             ..Default::default()
         };
 
