@@ -2,7 +2,8 @@
     Usage:
         * There are two modes of running: vm and native, which should be specifided as args
         * Example: (being at the blockifier's root)
-            cargo bench --bench yas vm 
+            cargo bench --bench yas vm
+        * If no args were specifided then vm would be used
 */
 
 use std::{sync::Arc, time::{Duration, Instant}, u64};
@@ -74,7 +75,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Deploying TYAS0 token on ERC20.");
     let calldata =
-    vec![name, symbol, 0_u128.into(), 0x3782_dace_9d90_0000_u128.into(), OWNER_ADDRESS.into()];
+    vec![name, symbol, 0_u128.into(), 0x9876_dace_9d90_0000_0000_u128.into(), OWNER_ADDRESS.into()];
     let yas0_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
@@ -83,7 +84,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Deploying TYAS1 token on ERC20.");
     let calldata =
-        vec![name, symbol, 0_u128.into(), 0x3782_dace_9d90_0000_u128.into(), OWNER_ADDRESS.into()];
+        vec![name, symbol, 0_u128.into(), 0x9876_dace_9d90_0000_0000_u128.into(), OWNER_ADDRESS.into()];
     let yas1_token_address =
         tx_deploy_contract(&mut state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
@@ -185,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 native_felt_to_stark_felt(yas_pool_address),
                 OWNER_ADDRESS.into(),
                 u32::from(true).into(),
-                500_000_000_000_000_u128.into(),
+                500_000_000_000_u128.into(),
                 0_u32.into(),
                 u32::from(true).into(),
                 4_295_128_740_u128.into(),
