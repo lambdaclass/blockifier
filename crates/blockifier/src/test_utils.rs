@@ -7,6 +7,7 @@ pub mod initial_test_state;
 pub mod invoke;
 pub mod prices;
 pub mod struct_impls;
+pub mod yas_test_utils;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
