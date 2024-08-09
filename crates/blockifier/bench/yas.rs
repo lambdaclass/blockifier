@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Declares
 
     let (erc20_class_hash, yas_factory_class_hash, yas_router_class_hash, yas_pool_class_hash) =
-        declare_all_contracts(&mut state, true)?;
+        declare_all_contracts(&mut state, cairo_native)?;
 
     // Deploys
 
