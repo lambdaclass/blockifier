@@ -1,4 +1,3 @@
-
 use std::{collections::HashMap, fs, path::Path, sync::Arc};
 
 use crate::{
@@ -99,7 +98,13 @@ fn tx_deploy_contract<S: StateReader>(
     Ok(address)
 }
 
-pub fn deploy_all_contracts(state: &mut CachedState<DictStateReader>, erc20_class_hash: ClassHash, yas_factory_class_hash: ClassHash, yas_router_class_hash: ClassHash, yas_pool_class_hash: ClassHash) -> Result<(Felt, Felt, Felt, Felt), Box<dyn std::error::Error>> {
+pub fn deploy_all_contracts(
+    state: &mut CachedState<DictStateReader>,
+    erc20_class_hash: ClassHash,
+    yas_factory_class_hash: ClassHash,
+    yas_router_class_hash: ClassHash,
+    yas_pool_class_hash: ClassHash,
+) -> Result<(Felt, Felt, Felt, Felt), Box<dyn std::error::Error>> {
     let name = Felt::from_bytes_be_slice("TYAS0".as_bytes());
     let symbol = Felt::from_bytes_be_slice("$YAS0".as_bytes());
 
@@ -127,18 +132,12 @@ pub fn deploy_all_contracts(state: &mut CachedState<DictStateReader>, erc20_clas
         tx_deploy_contract(state, &calldata, stark_felt_to_native_felt(erc20_class_hash.0))?;
 
     let calldata = vec![OWNER_ADDRESS.into(), stark_felt_to_native_felt(yas_pool_class_hash.0)];
-    let yas_factory_address = tx_deploy_contract(
-        state,
-        &calldata,
-        stark_felt_to_native_felt(yas_factory_class_hash.0),
-    )?;
+    let yas_factory_address =
+        tx_deploy_contract(state, &calldata, stark_felt_to_native_felt(yas_factory_class_hash.0))?;
 
     let calldata = vec![];
-    let yas_router_address = tx_deploy_contract(
-        state,
-        &calldata,
-        stark_felt_to_native_felt(yas_router_class_hash.0),
-    )?;
+    let yas_router_address =
+        tx_deploy_contract(state, &calldata, stark_felt_to_native_felt(yas_router_class_hash.0))?;
 
     let calldata = vec![
         yas_factory_address,
@@ -148,11 +147,8 @@ pub fn deploy_all_contracts(state: &mut CachedState<DictStateReader>, erc20_clas
         0x3c.into(),
         0.into(),
     ];
-    let yas_pool_address = tx_deploy_contract(
-        state,
-        &calldata,
-        stark_felt_to_native_felt(yas_pool_class_hash.0),
-    )?;
+    let yas_pool_address =
+        tx_deploy_contract(state, &calldata, stark_felt_to_native_felt(yas_pool_class_hash.0))?;
 
     Ok((yas0_token_address, yas1_token_address, yas_router_address, yas_pool_address))
 }

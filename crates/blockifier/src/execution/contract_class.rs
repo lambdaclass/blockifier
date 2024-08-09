@@ -570,7 +570,7 @@ impl SierraContractClassV1 {
         CasmContractClass::from_contract_class(sierra_contract_class, false, usize::MAX)
     }
 
-    fn bytecode_length(&self) -> usize {
+    pub fn bytecode_length(&self) -> usize {
         self
             .to_casm_contract_class()
             .expect("Unable to get the casm class out of this sierra")
