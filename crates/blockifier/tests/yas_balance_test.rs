@@ -112,8 +112,11 @@ mod native_vm_tests {
             .into(),
         );
 
-        invoke_func(&mut state_vm, "swap", yas_router_address, calldata.clone()).unwrap();
-        invoke_func(&mut state_native, "swap", yas_router_address, calldata).unwrap();
+        let call_info_vm = invoke_func(&mut state_vm, "swap", yas_router_address, calldata.clone()).unwrap();
+        let call_info_native = invoke_func(&mut state_native, "swap", yas_router_address, calldata).unwrap();
+
+        let execution_vm = call_info_vm.execution;
+        let execution_native = call_info_native.execution;
 
         // Assertions
 
@@ -165,6 +168,15 @@ mod native_vm_tests {
         let class_hash_to_class_map_native = state_native.state.class_hash_to_class;
         let class_hash_to_class_map_vm = state_vm.state.class_hash_to_class;
 
+        let events_native = execution_native.events;
+        let events_vm = execution_vm.events;
+        
+        let messages_native = execution_native.l2_to_l1_messages;
+        let messages_vm = execution_vm.l2_to_l1_messages;
+
+        let resources_native = call_info_native.resources;
+        let resources_vm = call_info_vm.resources;
+        
         // Balance Assertions
         assert_eq!(balance_difference_yas0_native, balance_difference_yas0_vm);
         assert_eq!(balance_difference_yas1_native, balance_difference_yas1_vm);
@@ -175,5 +187,10 @@ mod native_vm_tests {
         assert_eq!(address_to_class_hash_map_native, address_to_class_hash_map_vm);
         assert_eq!(address_to_nonce_map_native, address_to_nonce_map_vm);
         assert_eq!(class_hash_to_class_map_native, class_hash_to_class_map_vm);
+
+        // Events, Resources and Messages Assertions
+        assert_eq!(events_native, events_vm);
+        assert_eq!(messages_native, messages_vm);
+        assert_eq!(resources_native, resources_vm);
     }
 }
