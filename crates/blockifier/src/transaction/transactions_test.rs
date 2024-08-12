@@ -741,7 +741,7 @@ fn test_state_get_fee_token_balance(
     // Get balance from state, and validate.
     let (low, high) =
         state.get_fee_token_balance(contract_address!(recipient), fee_token_address).unwrap();
-    
+
     assert_eq!(low, mint_low);
     assert_eq!(high, mint_high);
 }
