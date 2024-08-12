@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::RandomState;
+use std::sync::{Arc, RwLock};
 
 use ark_ff::BigInt;
 use cairo_lang_sierra::extensions::core::CoreTypeConcrete;
@@ -13,7 +14,7 @@ use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 use itertools::Itertools;
 use num_bigint::BigUint;
 use num_traits::ToBytes;
-use sierra_emu::{ProgramTrace, StateDump, Value};
+use sierra_emu::{ProgramTrace, StateDump, SystemValue, Value};
 use starknet_api::core::{ContractAddress, EntryPointSelector};
 use starknet_api::state::StorageKey;
 use starknet_api::transaction::Resource;
@@ -89,7 +90,7 @@ pub fn run_sierra_emu_executor(
     mut vm: sierra_emu::VirtualMachine,
     function_id: &FunctionId,
     call: CallEntryPoint,
-    mut _syscall_handler: NativeSyscallHandler<'_>,
+    mut syscall_handler: NativeSyscallHandler<'_>,
 ) -> EntryPointExecutionResult<CallInfo> {
     let function = vm.registry().get_function(function_id).unwrap();
 
@@ -128,7 +129,9 @@ pub fn run_sierra_emu_executor(
                         StarkNetTypeConcrete::StorageBaseAddress(_) => todo!(),
                         StarkNetTypeConcrete::StorageAddress(_) => todo!(),
                         // todo: add syscall handler
-                        StarkNetTypeConcrete::System(_) => todo!(),
+                        StarkNetTypeConcrete::System(_) => {
+                            Value::System(SystemValue { handler: Box::new(&mut syscall_handler) })
+                        }
                         StarkNetTypeConcrete::Secp256Point(_) => todo!(),
                         StarkNetTypeConcrete::Sha256StateHandle(_) => todo!(),
                     },
