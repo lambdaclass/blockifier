@@ -177,6 +177,24 @@ pub fn default_tx_v2_info() -> TxV2Info {
     }
 }
 
+pub fn default_tx_v2_info_emu() -> sierra_emu::starknet::TxV2Info {
+    sierra_emu::starknet::TxV2Info {
+        version: Default::default(),
+        account_contract_address: Default::default(),
+        max_fee: 0,
+        signature: vec![],
+        transaction_hash: Default::default(),
+        chain_id: Default::default(),
+        nonce: Default::default(),
+        resource_bounds: vec![],
+        tip: 0,
+        paymaster_data: vec![],
+        nonce_data_availability_mode: 0,
+        fee_data_availability_mode: 0,
+        account_deployment_data: vec![],
+    }
+}
+
 pub fn calculate_resource_bounds(
     tx_info: &CurrentTransactionInfo,
 ) -> SyscallResult<Vec<ResourceBounds>> {
@@ -194,6 +212,31 @@ pub fn calculate_resource_bounds(
             };
 
             ResourceBounds {
+                resource,
+                max_amount: resource_bound.max_amount,
+                max_price_per_unit: resource_bound.max_price_per_unit,
+            }
+        })
+        .collect())
+}
+
+pub fn calculate_resource_bounds_emu(
+    tx_info: &CurrentTransactionInfo,
+) -> sierra_emu::starknet::SyscallResult<Vec<sierra_emu::starknet::ResourceBounds>> {
+    let l1_gas = Felt::from_hex(L1_GAS).map_err(|e| encode_str_as_felts(&e.to_string()))?;
+    let l2_gas = Felt::from_hex(L2_GAS).map_err(|e| encode_str_as_felts(&e.to_string()))?;
+
+    Ok(tx_info
+        .resource_bounds
+        .0
+        .iter()
+        .map(|(resource, resource_bound)| {
+            let resource = match resource {
+                Resource::L1Gas => l1_gas,
+                Resource::L2Gas => l2_gas,
+            };
+
+            sierra_emu::starknet::ResourceBounds {
                 resource,
                 max_amount: resource_bound.max_amount,
                 max_price_per_unit: resource_bound.max_price_per_unit,

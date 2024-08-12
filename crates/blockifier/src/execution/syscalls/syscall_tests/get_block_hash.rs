@@ -83,11 +83,9 @@ fn negative_flow_execution_mode_validate(test_contract: FeatureContract) {
         );
     }
 
-    assert!(
-        error
-            .to_string()
-            .contains("Unauthorized syscall get_block_hash in execution mode Validate")
-    );
+    assert!(error
+        .to_string()
+        .contains("Unauthorized syscall get_block_hash in execution mode Validate"));
 }
 
 #[test_case(FeatureContract::SierraTestContract; "Native")]

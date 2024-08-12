@@ -3,7 +3,7 @@
 #   https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2
 resolver = "2"
 
-members = ["crates/blockifier", "crates/native_blockifier"]
+members = ["crates/blockifier"]
 
 [workspace.package]
 version = "0.8.0-rc.1"
@@ -64,6 +64,7 @@ tempfile = "3.7.0"
 test-case = "2.2.2"
 thiserror = "1.0.37"
 tikv-jemallocator = "0.5.4"
+sierra-emu = { path = "/home/edgar/data/work/sierra-emu" }
 
 [workspace.lints.rust]
 future-incompatible = "deny"
