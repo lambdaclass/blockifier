@@ -1,12 +1,12 @@
 /*
     Usage:
-        * There are two modes of running: vm and native, which should be specifided as args
+        * There are two modes of running: vm and native, which should be specified as args
         * Example with VM:
             cargo bench --bench yas vm
-        * Emple with native:
+        * Emxaple with native:
             cargo bench --features native_jit --bench yas native (cairo native JIT)
             cargo bench --bench yas native (cairo native AOT)
-        * If no args were specifided then vm would be used
+        * If no args were specified then vm would be used
 */
 
 use std::{
