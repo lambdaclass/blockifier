@@ -149,31 +149,29 @@ pub fn run_sierra_emu_executor(
         trace.push(StateDump::new(statement_idx, state));
     }
 
-    /*
-    let run_result = match execution_result {
-        Ok(res) if res.failure_flag => Err(EntryPointExecutionError::NativeExecutionError {
-            info: if !res.return_values.is_empty() {
-                decode_felts_as_str(&res.return_values)
-            } else {
-                String::from("Unknown error")
-            },
-        }),
-        Err(runner_err) => {
-            Err(EntryPointExecutionError::NativeUnexpectedError { source: runner_err })
-        }
-        Ok(res) => Ok(res),
-    }?;
-
-    create_callinfo(
-        call.clone(),
-        run_result,
-        syscall_handler.events,
-        syscall_handler.l2_to_l1_messages,
-        syscall_handler.inner_calls,
-        syscall_handler.storage_read_values,
-        syscall_handler.accessed_storage_keys,
-    )
-     */
+    // let run_result = match execution_result {
+    // Ok(res) if res.failure_flag => Err(EntryPointExecutionError::NativeExecutionError {
+    // info: if !res.return_values.is_empty() {
+    // decode_felts_as_str(&res.return_values)
+    // } else {
+    // String::from("Unknown error")
+    // },
+    // }),
+    // Err(runner_err) => {
+    // Err(EntryPointExecutionError::NativeUnexpectedError { source: runner_err })
+    // }
+    // Ok(res) => Ok(res),
+    // }?;
+    //
+    // create_callinfo(
+    // call.clone(),
+    // run_result,
+    // syscall_handler.events,
+    // syscall_handler.l2_to_l1_messages,
+    // syscall_handler.inner_calls,
+    // syscall_handler.storage_read_values,
+    // syscall_handler.accessed_storage_keys,
+    // )
 
     todo!()
 }

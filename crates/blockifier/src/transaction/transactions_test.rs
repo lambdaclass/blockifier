@@ -118,11 +118,7 @@ fn expected_validate_call_info(
             usize::from(entry_point_selector_name == constants::VALIDATE_ENTRY_POINT_NAME)
         }
         CairoVersion::Cairo1 => {
-            if entry_point_selector_name == constants::VALIDATE_ENTRY_POINT_NAME {
-                7
-            } else {
-                2
-            }
+            if entry_point_selector_name == constants::VALIDATE_ENTRY_POINT_NAME { 7 } else { 2 }
         }
     };
     let n_steps = match (entry_point_selector_name, cairo_version) {
@@ -1945,10 +1941,12 @@ fn test_execute_tx_with_invalid_transaction_version(
     });
 
     let execution_info = account_tx.execute(state, block_context, true, true).unwrap();
-    assert!(execution_info
-        .revert_error
-        .unwrap()
-        .contains(format!("ASSERT_EQ instruction failed: {} != 3.", invalid_version).as_str()));
+    assert!(
+        execution_info
+            .revert_error
+            .unwrap()
+            .contains(format!("ASSERT_EQ instruction failed: {} != 3.", invalid_version).as_str())
+    );
 }
 
 fn max_n_emitted_events() -> usize {

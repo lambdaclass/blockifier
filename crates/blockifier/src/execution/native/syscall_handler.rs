@@ -936,14 +936,14 @@ mod sierra_emu_impl {
             if current_block_number < constants::STORED_BLOCK_HASH_BUFFER
                 || block_number > current_block_number - constants::STORED_BLOCK_HASH_BUFFER
             {
-                // `panic` is unreachable in this case, also this is covered by tests so we can safely
-                // unwrap
+                // `panic` is unreachable in this case, also this is covered by tests so we can
+                // safely unwrap
                 let out_of_range_felt = Felt::from_hex(BLOCK_NUMBER_OUT_OF_RANGE_ERROR).unwrap();
 
                 // This error is wrapped into a `SyscallExecutionError::SyscallError` in the VM
                 // implementation, but here it would be more convenient to return it directly, since
-                // wrapping it like VM does will result in a double encoding to felts, which adds extra
-                // layer of complication
+                // wrapping it like VM does will result in a double encoding to felts, which adds
+                // extra layer of complication
                 return Err(vec![out_of_range_felt]);
             }
 
@@ -1622,7 +1622,8 @@ mod sierra_emu_impl {
                 current_block.iter().flat_map(|x| x.to_be_bytes()),
             )
             .expect(
-                "u32.to_be_bytes() returns 4 bytes, and data.len() == 16. So data contains 64 bytes.",
+                "u32.to_be_bytes() returns 4 bytes, and data.len() == 16. So data contains 64 \
+                 bytes.",
             );
             let mut state: [u32; SHA256_STATE_SIZE] = prev_state;
             sha2::compress256(&mut state, &[data_as_bytes]);
