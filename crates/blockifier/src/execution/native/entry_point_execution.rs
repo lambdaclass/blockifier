@@ -1,12 +1,14 @@
+use std::sync::Arc;
+
 use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 
 use super::syscall_handler::NativeSyscallHandler;
-use super::utils::run_native_executor;
 use crate::execution::call_info::CallInfo;
 use crate::execution::contract_class::NativeContractClassV1;
 use crate::execution::entry_point::{
     CallEntryPoint, EntryPointExecutionContext, EntryPointExecutionResult,
 };
+use crate::execution::native::utils::run_sierra_emu_executor;
 use crate::state::state_api::State;
 
 pub fn execute_entry_point_call(
@@ -28,8 +30,12 @@ pub fn execute_entry_point_call(
         context,
     );
 
-    println!("Blockifier-Native: running the Native Executor");
-    let result = run_native_executor(&contract_class.executor, function_id, call, syscall_handler);
-    println!("Blockifier-Native: Native Executor finished running");
-    result
+    println!("Blockifier-Sierra-Emu: running the Native Sierra emulator");
+    let vm = sierra_emu::VirtualMachine::new(Arc::new(contract_class.program.clone()));
+    let result2 = run_sierra_emu_executor(vm, function_id, call.clone(), syscall_handler)?;
+    dbg!(result2);
+    // let result = run_native_executor(&contract_class.executor, function_id, call,
+    // syscall_handler);
+    println!("Blockifier-Sierra-Emu: Sierra Emu Executor finished running");
+    todo!()
 }

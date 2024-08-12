@@ -5,7 +5,6 @@ use ark_ff::BigInt;
 use cairo_lang_sierra::extensions::core::CoreTypeConcrete;
 use cairo_lang_sierra::extensions::starknet::StarkNetTypeConcrete;
 use cairo_lang_sierra::ids::FunctionId;
-use cairo_lang_sierra::program::Function;
 use cairo_lang_starknet_classes::contract_class::ContractEntryPoint;
 use cairo_native::execution_result::ContractExecutionResult;
 use cairo_native::executor::AotNativeExecutor;
@@ -88,10 +87,12 @@ pub fn run_native_executor(
 
 pub fn run_sierra_emu_executor(
     mut vm: sierra_emu::VirtualMachine,
-    function: &Function,
+    function_id: &FunctionId,
     call: CallEntryPoint,
     mut _syscall_handler: NativeSyscallHandler<'_>,
 ) -> EntryPointExecutionResult<CallInfo> {
+    let function = vm.registry().get_function(function_id).unwrap();
+
     vm.push_frame(
         function.id.clone(),
         function
