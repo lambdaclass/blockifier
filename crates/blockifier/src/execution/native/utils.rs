@@ -2,7 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::hash::RandomState;
 
 use ark_ff::BigInt;
+use cairo_lang_sierra::extensions::core::CoreTypeConcrete;
+use cairo_lang_sierra::extensions::starknet::StarkNetTypeConcrete;
 use cairo_lang_sierra::ids::FunctionId;
+use cairo_lang_sierra::program::Function;
 use cairo_lang_starknet_classes::contract_class::ContractEntryPoint;
 use cairo_native::execution_result::ContractExecutionResult;
 use cairo_native::executor::AotNativeExecutor;
@@ -11,6 +14,7 @@ use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 use itertools::Itertools;
 use num_bigint::BigUint;
 use num_traits::ToBytes;
+use sierra_emu::{ProgramTrace, StateDump, Value};
 use starknet_api::core::{ContractAddress, EntryPointSelector};
 use starknet_api::state::StorageKey;
 use starknet_api::transaction::Resource;
@@ -80,6 +84,98 @@ pub fn run_native_executor(
         syscall_handler.storage_read_values,
         syscall_handler.accessed_storage_keys,
     )
+}
+
+pub fn run_sierra_emu_executor(
+    mut vm: sierra_emu::VirtualMachine,
+    function: &Function,
+    call: CallEntryPoint,
+    mut _syscall_handler: NativeSyscallHandler<'_>,
+) -> EntryPointExecutionResult<CallInfo> {
+    vm.push_frame(
+        function.id.clone(),
+        function
+            .signature
+            .param_types
+            .iter()
+            .map(|type_id| {
+                let type_info = vm.registry().get_type(type_id).unwrap();
+                match type_info {
+                    CoreTypeConcrete::GasBuiltin(_) => Value::U128(call.initial_gas.into()),
+                    CoreTypeConcrete::Struct(inner) => {
+                        match vm.registry().get_type(&inner.members[0]).unwrap() {
+                            CoreTypeConcrete::Array(inner) => {
+                                let felt_ty = &inner.ty;
+                                Value::Struct(vec![Value::Array {
+                                    ty: felt_ty.clone(),
+                                    data: {
+                                        let mut v = Vec::new();
+
+                                        for x in call.calldata.0.iter() {
+                                            v.push(Value::Felt(*x));
+                                        }
+                                        v
+                                    },
+                                }])
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    CoreTypeConcrete::StarkNet(inner) => match inner {
+                        StarkNetTypeConcrete::ClassHash(_) => todo!(),
+                        StarkNetTypeConcrete::ContractAddress(_) => todo!(),
+                        StarkNetTypeConcrete::StorageBaseAddress(_) => todo!(),
+                        StarkNetTypeConcrete::StorageAddress(_) => todo!(),
+                        // todo: add syscall handler
+                        StarkNetTypeConcrete::System(_) => todo!(),
+                        StarkNetTypeConcrete::Secp256Point(_) => todo!(),
+                        StarkNetTypeConcrete::Sha256StateHandle(_) => todo!(),
+                    },
+                    CoreTypeConcrete::RangeCheck(_)
+                    | CoreTypeConcrete::Pedersen(_)
+                    | CoreTypeConcrete::Poseidon(_)
+                    | CoreTypeConcrete::Bitwise(_)
+                    | CoreTypeConcrete::BuiltinCosts(_)
+                    | CoreTypeConcrete::SegmentArena(_) => Value::Unit,
+                    _ => todo!(),
+                }
+            })
+            .collect::<Vec<_>>(),
+    );
+
+    let mut trace = ProgramTrace::new();
+
+    while let Some((statement_idx, state)) = vm.step() {
+        trace.push(StateDump::new(statement_idx, state));
+    }
+
+    /*
+    let run_result = match execution_result {
+        Ok(res) if res.failure_flag => Err(EntryPointExecutionError::NativeExecutionError {
+            info: if !res.return_values.is_empty() {
+                decode_felts_as_str(&res.return_values)
+            } else {
+                String::from("Unknown error")
+            },
+        }),
+        Err(runner_err) => {
+            Err(EntryPointExecutionError::NativeUnexpectedError { source: runner_err })
+        }
+        Ok(res) => Ok(res),
+    }?;
+
+    create_callinfo(
+        call.clone(),
+        run_result,
+        syscall_handler.events,
+        syscall_handler.l2_to_l1_messages,
+        syscall_handler.inner_calls,
+        syscall_handler.storage_read_values,
+        syscall_handler.accessed_storage_keys,
+    )
+     */
+
+    todo!()
 }
 
 pub fn create_callinfo(

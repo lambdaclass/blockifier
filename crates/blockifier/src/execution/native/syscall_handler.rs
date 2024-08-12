@@ -1606,8 +1606,8 @@ mod sierra_emu_impl {
 
         fn sha256_process_block(
             &mut self,
-            prev_state: &[u32; 8],
-            current_block: &[u32; 16],
+            prev_state: [u32; 8],
+            current_block: [u32; 16],
             remaining_gas: &mut u128,
         ) -> SyscallResult<[u32; 8]> {
             const SHA256_STATE_SIZE: usize = 8;
@@ -1624,7 +1624,7 @@ mod sierra_emu_impl {
             .expect(
                 "u32.to_be_bytes() returns 4 bytes, and data.len() == 16. So data contains 64 bytes.",
             );
-            let mut state: [u32; SHA256_STATE_SIZE] = *prev_state;
+            let mut state: [u32; SHA256_STATE_SIZE] = prev_state;
             sha2::compress256(&mut state, &[data_as_bytes]);
             Ok(state)
         }
