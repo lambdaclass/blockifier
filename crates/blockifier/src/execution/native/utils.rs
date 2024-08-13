@@ -103,20 +103,27 @@ pub fn run_sierra_emu_executor(
                 match type_info {
                     CoreTypeConcrete::GasBuiltin(_) => Value::U128(call.initial_gas.into()),
                     CoreTypeConcrete::Struct(inner) => {
-                        match vm.registry().get_type(&inner.members[0]).unwrap() {
-                            CoreTypeConcrete::Array(inner) => {
-                                let felt_ty = &inner.ty;
-                                Value::Struct(vec![Value::Array {
-                                    ty: felt_ty.clone(),
-                                    data: {
-                                        let mut v = Vec::new();
+                        let member = vm.registry().get_type(&inner.members[0]).unwrap();
+                        match member {
+                            CoreTypeConcrete::Snapshot(inner) => {
+                                let inner = vm.registry().get_type(&inner.ty).unwrap();
+                                match inner {
+                                    CoreTypeConcrete::Array(inner) => {
+                                        let felt_ty = &inner.ty;
+                                        Value::Struct(vec![Value::Array {
+                                            ty: felt_ty.clone(),
+                                            data: {
+                                                let mut v = Vec::new();
 
-                                        for x in call.calldata.0.iter() {
-                                            v.push(Value::Felt(*x));
-                                        }
-                                        v
-                                    },
-                                }])
+                                                for x in call.calldata.0.iter() {
+                                                    v.push(Value::Felt(*x));
+                                                }
+                                                v
+                                            },
+                                        }])
+                                    }
+                                    _ => unreachable!(),
+                                }
                             }
                             _ => unreachable!(),
                         }
