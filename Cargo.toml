@@ -64,7 +64,7 @@ tempfile = "3.7.0"
 test-case = "2.2.2"
 thiserror = "1.0.37"
 tikv-jemallocator = "0.5.4"
-sierra-emu = { path = "/home/edgar/data/work/sierra-emu" }
+sierra-emu = { path = "/Users/edgar/Documents/sierra-emu" }
 
 [workspace.lints.rust]
 future-incompatible = "deny"

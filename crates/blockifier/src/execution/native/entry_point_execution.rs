@@ -21,7 +21,7 @@ pub fn execute_entry_point_call(
     let function_id =
         contract_class.get_entrypoint(call.entry_point_type, call.entry_point_selector)?;
 
-    let syscall_handler: NativeSyscallHandler<'_> = NativeSyscallHandler::new(
+    let mut syscall_handler: NativeSyscallHandler<'_> = NativeSyscallHandler::new(
         state,
         call.caller_address,
         call.storage_address,
@@ -31,8 +31,11 @@ pub fn execute_entry_point_call(
     );
 
     println!("Blockifier-Sierra-Emu: running the Native Sierra emulator");
-    let vm = sierra_emu::VirtualMachine::new(Arc::new(contract_class.program.clone()));
-    let result2 = run_sierra_emu_executor(vm, function_id, call.clone(), syscall_handler)?;
+    let vm = sierra_emu::VirtualMachine::new_starknet(
+        Arc::new(contract_class.program.clone()),
+        &mut syscall_handler,
+    );
+    let result2 = run_sierra_emu_executor(vm, function_id, call.clone())?;
     dbg!(result2);
     // let result = run_native_executor(&contract_class.executor, function_id, call,
     // syscall_handler);
