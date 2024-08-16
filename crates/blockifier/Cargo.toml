@@ -12,6 +12,7 @@ workspace = true
 [features]
 testing = ["rstest"]
 concurrency = []
+native_jit = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -66,6 +67,11 @@ test-case.workspace = true
 [[bench]]
 path = "bench/blockifier_bench.rs"
 name = "blockifier_bench"
+harness = false
+
+[[bench]]
+path = "bench/yas.rs"
+name = "yas"
 harness = false
 
 [package.metadata.cargo-udeps.ignore]

@@ -22,7 +22,8 @@ pub fn verify_contract_class_version(
                 cairo_version: 0,
             })
         }
-        ContractClass::V1(_) => {
+        ContractClass::V1Sierra(_)
+        | ContractClass::V1(_) => {
             if let TransactionVersion::TWO | TransactionVersion::THREE = declare_version {
                 return Ok(());
             }
@@ -31,6 +32,5 @@ pub fn verify_contract_class_version(
                 cairo_version: 1,
             })
         }
-        ContractClass::V1Sierra(_) => todo!("Sierra verify contract class version"),
     }
 }

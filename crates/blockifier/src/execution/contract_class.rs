@@ -92,7 +92,7 @@ impl ContractClass {
         match self {
             ContractClass::V0(class) => class.bytecode_length(),
             ContractClass::V1(class) => class.bytecode_length(),
-            ContractClass::V1Sierra(_) => todo!("sierra estimate casm hash computation resources"),
+            ContractClass::V1Sierra(class) => class.bytecode_length(),
         }
     }
 }
@@ -568,6 +568,15 @@ impl SierraContractClassV1 {
         };
 
         CasmContractClass::from_contract_class(sierra_contract_class, false, usize::MAX)
+    }
+
+    pub fn bytecode_length(&self) -> usize {
+        self
+            .clone()
+            .to_casm_contract_class()
+            .expect("Unable to get the casm class out of this sierra")
+            .bytecode
+            .len()
     }
 }
 
