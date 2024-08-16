@@ -9,10 +9,7 @@
         * If no args were specified then vm would be used
 */
 
-use std::{
-    time::{Duration, Instant},
-    u64,
-};
+use std::time::{Duration, Instant};
 
 use blockifier::{
     execution::native::utils::{native_felt_to_stark_felt, stark_felt_to_native_felt},
@@ -38,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             false
         }
     };
-    let mut initial_gas = u64::MAX;
+    let mut consumed_gas = 0;
 
     let mut state = create_state(cairo_native)?;
 
@@ -134,7 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let call_info = invoke_func(&mut state, "swap", yas_router_address, calldata)?;
         let t1 = Instant::now();
 
-        initial_gas -= call_info.execution.gas_consumed;
+        consumed_gas += call_info.execution.gas_consumed;
 
         delta_t += t1.duration_since(t0);
 
@@ -164,7 +161,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "[{bench_mode}] Executed {runs} swaps taking {delta_t} seconds ({} #/s, or {} s/#), consuming {} units of gas",
         f64::from(runs) / delta_t,
         delta_t / f64::from(runs),
-        u64::MAX - initial_gas
+        consumed_gas
     );
 
     Ok(())
