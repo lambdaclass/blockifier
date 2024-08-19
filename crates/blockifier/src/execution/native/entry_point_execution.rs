@@ -36,9 +36,9 @@ pub fn execute_entry_point_call(
         &mut syscall_handler,
     );
     let result2 = run_sierra_emu_executor(vm, function_id, call.clone())?;
-    dbg!(result2);
+    // dbg!(&result2);
     // let result = run_native_executor(&contract_class.executor, function_id, call,
     // syscall_handler);
     println!("Blockifier-Sierra-Emu: Sierra Emu Executor finished running");
-    todo!()
+    Ok(result2)
 }

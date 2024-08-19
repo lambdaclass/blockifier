@@ -156,36 +156,64 @@ pub fn run_sierra_emu_executor(
         trace.push(StateDump::new(statement_idx, state));
     }
 
-    // let run_result = match execution_result {
-    // Ok(res) if res.failure_flag => Err(EntryPointExecutionError::NativeExecutionError {
-    // info: if !res.return_values.is_empty() {
-    // decode_felts_as_str(&res.return_values)
-    // } else {
-    // String::from("Unknown error")
-    // },
-    // }),
-    // Err(runner_err) => {
-    // Err(EntryPointExecutionError::NativeUnexpectedError { source: runner_err })
-    // }
-    // Ok(res) => Ok(res),
-    // }?;
-    //
-    // create_callinfo(
-    // call.clone(),
-    // run_result,
-    // syscall_handler.events,
-    // syscall_handler.l2_to_l1_messages,
-    // syscall_handler.inner_calls,
-    // syscall_handler.storage_read_values,
-    // syscall_handler.accessed_storage_keys,
-    // )
+    let execution_result = sierra_emu::ContractExecutionResult::from_trace(&trace).unwrap();
+    dbg!(&execution_result);
+    // let trace = serde_json::to_string_pretty(&trace).unwrap();
+    // std::fs::write("trace.json", trace).unwrap();
 
-    todo!()
+    if execution_result.failure_flag {
+        Err(EntryPointExecutionError::NativeExecutionError {
+            info: if !execution_result.return_values.is_empty() {
+                decode_felts_as_str(&execution_result.return_values)
+            } else {
+                String::from("Unknown error")
+            },
+        })?;
+    }
+
+    create_callinfo_emu(
+        call.clone(),
+        execution_result,
+        vm.syscall_handler.events.clone(),
+        vm.syscall_handler.l2_to_l1_messages.clone(),
+        vm.syscall_handler.inner_calls.clone(),
+        vm.syscall_handler.storage_read_values.clone(),
+        vm.syscall_handler.accessed_storage_keys.clone(),
+    )
 }
 
 pub fn create_callinfo(
     call: CallEntryPoint,
     run_result: ContractExecutionResult,
+    events: Vec<OrderedEvent>,
+    l2_to_l1_messages: Vec<OrderedL2ToL1Message>,
+    inner_calls: Vec<CallInfo>,
+    storage_read_values: Vec<Felt>,
+    accessed_storage_keys: HashSet<StorageKey, RandomState>,
+) -> Result<CallInfo, EntryPointExecutionError> {
+    Ok(CallInfo {
+        call,
+        execution: CallExecution {
+            retdata: Retdata(run_result.return_values),
+            events,
+            l2_to_l1_messages,
+            failed: run_result.failure_flag,
+            gas_consumed: NATIVE_GAS_PLACEHOLDER,
+        },
+        resources: ExecutionResources {
+            n_steps: 0,
+            n_memory_holes: 0,
+            builtin_instance_counter: HashMap::default(),
+        },
+        inner_calls,
+        storage_read_values,
+        accessed_storage_keys,
+    })
+}
+
+pub fn create_callinfo_emu(
+    call: CallEntryPoint,
+    run_result: sierra_emu::ContractExecutionResult,
     events: Vec<OrderedEvent>,
     l2_to_l1_messages: Vec<OrderedL2ToL1Message>,
     inner_calls: Vec<CallInfo>,
