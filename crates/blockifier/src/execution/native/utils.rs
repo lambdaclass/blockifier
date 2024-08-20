@@ -2,8 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::hash::RandomState;
 
 use ark_ff::BigInt;
-use cairo_lang_sierra::extensions::core::CoreTypeConcrete;
-use cairo_lang_sierra::extensions::starknet::StarkNetTypeConcrete;
 use cairo_lang_sierra::ids::FunctionId;
 use cairo_lang_starknet_classes::contract_class::ContractEntryPoint;
 use cairo_native::execution_result::ContractExecutionResult;
@@ -13,7 +11,7 @@ use cairo_vm::vm::runners::cairo_runner::ExecutionResources;
 use itertools::Itertools;
 use num_bigint::BigUint;
 use num_traits::ToBytes;
-use sierra_emu::{ProgramTrace, StateDump, Value};
+use sierra_emu::{ProgramTrace, StateDump};
 use starknet_api::core::{ContractAddress, EntryPointSelector};
 use starknet_api::state::StorageKey;
 use starknet_api::transaction::Resource;
@@ -90,65 +88,9 @@ pub fn run_sierra_emu_executor(
     function_id: &FunctionId,
     call: CallEntryPoint,
 ) -> EntryPointExecutionResult<CallInfo> {
-    let function = vm.registry().get_function(function_id).unwrap();
+    let function = vm.registry().get_function(function_id).unwrap().clone();
 
-    vm.push_frame(
-        function.id.clone(),
-        function
-            .signature
-            .param_types
-            .iter()
-            .map(|type_id| {
-                let type_info = vm.registry().get_type(type_id).unwrap();
-                match type_info {
-                    CoreTypeConcrete::GasBuiltin(_) => Value::U128(call.initial_gas.into()),
-                    CoreTypeConcrete::Struct(inner) => {
-                        let member = vm.registry().get_type(&inner.members[0]).unwrap();
-                        match member {
-                            CoreTypeConcrete::Snapshot(inner) => {
-                                let inner = vm.registry().get_type(&inner.ty).unwrap();
-                                match inner {
-                                    CoreTypeConcrete::Array(inner) => {
-                                        let felt_ty = &inner.ty;
-                                        Value::Struct(vec![Value::Array {
-                                            ty: felt_ty.clone(),
-                                            data: {
-                                                let mut v = Vec::new();
-
-                                                for x in call.calldata.0.iter() {
-                                                    v.push(Value::Felt(*x));
-                                                }
-                                                v
-                                            },
-                                        }])
-                                    }
-                                    _ => unreachable!(),
-                                }
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    CoreTypeConcrete::StarkNet(inner) => match inner {
-                        StarkNetTypeConcrete::ClassHash(_) => todo!(),
-                        StarkNetTypeConcrete::ContractAddress(_) => todo!(),
-                        StarkNetTypeConcrete::StorageBaseAddress(_) => todo!(),
-                        StarkNetTypeConcrete::StorageAddress(_) => todo!(),
-                        // todo: add syscall handler
-                        StarkNetTypeConcrete::System(_) => Value::Unit,
-                        StarkNetTypeConcrete::Secp256Point(_) => todo!(),
-                        StarkNetTypeConcrete::Sha256StateHandle(_) => todo!(),
-                    },
-                    CoreTypeConcrete::RangeCheck(_)
-                    | CoreTypeConcrete::Pedersen(_)
-                    | CoreTypeConcrete::Poseidon(_)
-                    | CoreTypeConcrete::Bitwise(_)
-                    | CoreTypeConcrete::BuiltinCosts(_)
-                    | CoreTypeConcrete::SegmentArena(_) => Value::Unit,
-                    _ => todo!(),
-                }
-            })
-            .collect::<Vec<_>>(),
-    );
+    vm.call_contract(&function, call.initial_gas.into(), call.calldata.0.iter().cloned());
 
     let mut trace = ProgramTrace::new();
 
@@ -157,7 +99,7 @@ pub fn run_sierra_emu_executor(
     }
 
     let execution_result = sierra_emu::ContractExecutionResult::from_trace(&trace).unwrap();
-    dbg!(&execution_result);
+    // dbg!(&execution_result);
     // let trace = serde_json::to_string_pretty(&trace).unwrap();
     // std::fs::write("trace.json", trace).unwrap();
 
@@ -165,6 +107,8 @@ pub fn run_sierra_emu_executor(
         Err(EntryPointExecutionError::NativeExecutionError {
             info: if !execution_result.return_values.is_empty() {
                 decode_felts_as_str(&execution_result.return_values)
+            } else if let Some(error_msg) = execution_result.error_msg.clone() {
+                error_msg
             } else {
                 String::from("Unknown error")
             },
