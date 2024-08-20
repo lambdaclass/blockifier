@@ -1,31 +1,22 @@
 // SPDX-License-Identifier: MIT
-// Compatible with OpenZeppelin Contracts for Cairo ^0.10.0
+// Compatible with OpenZeppelin Contracts for Cairo ^0.15.1
 
 #[starknet::contract]
 mod Native {
-    use openzeppelin::token::erc20::ERC20Component;
+    use openzeppelin::token::erc20::{ERC20Component, ERC20HooksEmptyImpl};
+    use starknet::ContractAddress;
     use openzeppelin::token::erc20::interface;
     use openzeppelin::security::pausable::PausableComponent;
     use openzeppelin::access::ownable::OwnableComponent;
     use openzeppelin::upgrades::UpgradeableComponent;
     use openzeppelin::upgrades::interface::IUpgradeable;
-    use starknet::ContractAddress;
+    use core::starknet::ClassHash;
     use starknet::get_caller_address;
-    use starknet::ClassHash;
 
     component!(path: ERC20Component, storage: erc20, event: ERC20Event);
     component!(path: PausableComponent, storage: pausable, event: PausableEvent);
     component!(path: OwnableComponent, storage: ownable, event: OwnableEvent);
     component!(path: UpgradeableComponent, storage: upgradeable, event: UpgradeableEvent);
-
-    #[abi(embed_v0)]
-    impl ERC20MetadataImpl = ERC20Component::ERC20MetadataImpl<ContractState>;
-    #[abi(embed_v0)]
-    impl PausableImpl = PausableComponent::PausableImpl<ContractState>;
-    #[abi(embed_v0)]
-    impl OwnableImpl = OwnableComponent::OwnableImpl<ContractState>;
-    #[abi(embed_v0)]
-    impl OwnableCamelOnlyImpl = OwnableComponent::OwnableCamelOnlyImpl<ContractState>;
 
     impl ERC20InternalImpl = ERC20Component::InternalImpl<ContractState>;
     impl PausableInternalImpl = PausableComponent::InternalImpl<ContractState>;
@@ -58,11 +49,17 @@ mod Native {
     }
 
     #[constructor]
-    fn constructor(ref self: ContractState, recipient: ContractAddress, owner: ContractAddress) {
-        self.erc20.initializer("Native", "MTK");
-        self.ownable.initializer(owner);
+    fn constructor(
+        ref self: ContractState,
+        recipient: ContractAddress,
+        owner: ContractAddress
+    ) {
+        let name = "Native";
+        let symbol = "MTK";
 
-        self.erc20._mint(recipient, 10000000000000000000000);
+        self.erc20.initializer(name, symbol);
+        self.ownable.initializer(owner);
+        self.erc20.mint(recipient, 10000000000000000000000);
     }
 
     #[abi(embed_v0)]
@@ -127,27 +124,27 @@ mod Native {
         #[external(v0)]
         fn pause(ref self: ContractState) {
             self.ownable.assert_only_owner();
-            self.pausable._pause();
+            self.pausable.pause();
         }
 
         #[external(v0)]
         fn unpause(ref self: ContractState) {
             self.ownable.assert_only_owner();
-            self.pausable._unpause();
+            self.pausable.unpause();
         }
 
         #[external(v0)]
         fn burn(ref self: ContractState, value: u256) {
             self.pausable.assert_not_paused();
             let caller = get_caller_address();
-            self.erc20._burn(caller, value);
+            self.erc20.burn(caller, value);
         }
 
         #[external(v0)]
         fn mint(ref self: ContractState, recipient: ContractAddress, amount: u256) {
             self.ownable.assert_only_owner();
             self.pausable.assert_not_paused();
-            self.erc20._mint(recipient, amount);
+            self.erc20.mint(recipient, amount);
         }
     }
 
@@ -155,7 +152,7 @@ mod Native {
     impl UpgradeableImpl of IUpgradeable<ContractState> {
         fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
             self.ownable.assert_only_owner();
-            self.upgradeable._upgrade(new_class_hash);
+            self.upgradeable.upgrade(new_class_hash);
         }
     }
 }
