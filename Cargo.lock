@@ -442,6 +442,8 @@ dependencies = [
  "test-case",
  "thiserror",
  "tikv-jemallocator",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
