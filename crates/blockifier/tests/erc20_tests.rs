@@ -477,14 +477,6 @@ mod metadata_tests {
 
     #[test]
     fn test_name() {
-        tracing::subscriber::set_global_default(
-            tracing_subscriber::FmtSubscriber::builder()
-                .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-                .with_max_level(tracing::Level::TRACE)
-                .with_ansi(false)
-                .finish(),
-        ).unwrap();
-
         let mut context = TestContext::new();
         let result = context.call_entry_point("name", vec![]);
 
