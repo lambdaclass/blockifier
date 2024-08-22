@@ -99,9 +99,12 @@ pub fn run_sierra_emu_executor(
     }
 
     let execution_result = sierra_emu::ContractExecutionResult::from_trace(&trace).unwrap();
-    // dbg!(&execution_result);
-    // let trace = serde_json::to_string_pretty(&trace).unwrap();
-    // std::fs::write("trace.json", trace).unwrap();
+
+    if let Some(class_hash) = &call.class_hash {
+        let trace = serde_json::to_string_pretty(&trace).unwrap();
+        std::fs::create_dir_all("traces/emu/").unwrap();
+        std::fs::write(&format!("traces/emu/{}.json", class_hash), trace).unwrap();
+    }
 
     if execution_result.failure_flag {
         Err(EntryPointExecutionError::NativeExecutionError {
