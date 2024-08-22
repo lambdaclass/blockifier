@@ -253,27 +253,3 @@ impl NativeContractClassV1 {
     }
 }
 
-// static NATIVE_CONTEXT: std::sync::OnceLock<cairo_native::context::NativeContext> =
-//     std::sync::OnceLock::new();
-
-// static AOT_PROGRAM_CACHE: OnceLock<RwLock<ProgramCache<'static, ClassHash>>> =
-//                 OnceLock::new();
-
-//             let program_cache = AOT_PROGRAM_CACHE.get_or_init(|| {
-//                 RwLock::new(ProgramCache::Aot(AotProgramCache::new(
-//                     NATIVE_CONTEXT.get_or_init(NativeContext::new),
-//                 )))
-//             });
-//             let native_executor = match &*program_cache.read().unwrap() {
-//                 ProgramCache::Aot(program_cache) => program_cache.get(&class_hash),
-//                 _ => todo!("add Jit?")
-//             };
-
-//             let native_executor = match native_executor {
-//                 Some(native_executor) => native_executor,
-//                 None => match &mut *program_cache.write().unwrap() {
-//                     ProgramCache::Aot(program_cache) =>
-//                         program_cache.compile_and_insert(class_hash, &sierra_program, OptLevel::Default),
-//                     _ => todo!("add Jit?")
-//                 },
-//             };
