@@ -558,7 +558,7 @@ impl NativeContractClassV1 {
     /// executor must be derived from sierra_program which in turn must be derived from
     /// sierra_contract_class.
     pub fn new(
-        executor: AotNativeExecutor,
+        executor: Arc<AotNativeExecutor>,
         sierra_contract_class: SierraContractClass,
     ) -> Result<NativeContractClassV1, NativeEntryPointError> {
         let contract = NativeContractClassV1Inner::new(executor, sierra_contract_class)?;
@@ -601,7 +601,7 @@ impl NativeContractClassV1 {
 
 #[derive(Debug)]
 pub struct NativeContractClassV1Inner {
-    pub executor: AotNativeExecutor,
+    pub executor: Arc<AotNativeExecutor>,
     entry_points_by_type: NativeContractEntryPoints,
     // Storing the raw sierra program and entry points to be able to fallback to the vm
     sierra_program_raw: Vec<BigUintAsHex>,
@@ -611,7 +611,7 @@ pub struct NativeContractClassV1Inner {
 impl NativeContractClassV1Inner {
     /// See [NativeContractClassV1::new]
     fn new(
-        executor: AotNativeExecutor,
+        executor: Arc<AotNativeExecutor>,
         sierra_contract_class: SierraContractClass,
     ) -> Result<Self, NativeEntryPointError> {
         // This exception should never occur as it was also used to create the AotNativeExecutor
