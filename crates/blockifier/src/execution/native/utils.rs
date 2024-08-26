@@ -103,7 +103,8 @@ pub fn run_sierra_emu_executor(
     if let Some(class_hash) = &call.class_hash {
         let trace = serde_json::to_string_pretty(&trace).unwrap();
         std::fs::create_dir_all("traces/emu/").unwrap();
-        std::fs::write(&format!("traces/emu/{}.json", class_hash), trace).unwrap();
+        std::fs::write(&format!("traces/emu/{}.json", class_hash.0.to_fixed_hex_string()), trace)
+            .unwrap();
     }
 
     if execution_result.failure_flag {

@@ -252,4 +252,3 @@ impl NativeContractClassV1 {
         Self::try_from_json_string(&raw_contract_class).unwrap()
     }
 }
-
