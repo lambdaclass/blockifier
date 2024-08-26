@@ -244,7 +244,7 @@ impl NativeContractClassV1 {
         let sierra_program = sierra_contract_class.extract_sierra_program()?;
         let executor = compile_and_load(&sierra_program)?;
 
-        Ok(Self::new(executor, sierra_contract_class)?)
+        Ok(Self::new(Arc::new(executor), sierra_contract_class)?)
     }
 
     pub fn from_file(contract_path: &str) -> Self {
@@ -252,3 +252,4 @@ impl NativeContractClassV1 {
         Self::try_from_json_string(&raw_contract_class).unwrap()
     }
 }
+
