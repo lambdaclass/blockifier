@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::RandomState;
+use std::sync::atomic::AtomicUsize;
 
 use ark_ff::BigInt;
 use cairo_lang_sierra::ids::FunctionId;
@@ -90,6 +91,9 @@ pub fn run_sierra_emu_executor(
 ) -> EntryPointExecutionResult<CallInfo> {
     let function = vm.registry().get_function(function_id).unwrap().clone();
 
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
     vm.call_contract(&function, call.initial_gas.into(), call.calldata.0.iter().cloned());
 
     let mut trace = ProgramTrace::new();
@@ -100,12 +104,10 @@ pub fn run_sierra_emu_executor(
 
     let execution_result = sierra_emu::ContractExecutionResult::from_trace(&trace).unwrap();
 
-    if let Some(class_hash) = &call.class_hash {
-        let trace = serde_json::to_string_pretty(&trace).unwrap();
-        std::fs::create_dir_all("traces/emu/").unwrap();
-        std::fs::write(&format!("traces/emu/{}.json", class_hash.0.to_fixed_hex_string()), trace)
-            .unwrap();
-    }
+    let trace = serde_json::to_string_pretty(&trace).unwrap();
+    std::fs::create_dir_all("traces/emu/").unwrap();
+    std::fs::write(&format!("traces/emu/trace_{}.json", COUNTER.load(std::sync::atomic::Ordering::Relaxed)), trace)
+        .unwrap();
 
     if execution_result.failure_flag {
         Err(EntryPointExecutionError::NativeExecutionError {
