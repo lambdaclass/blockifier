@@ -92,7 +92,7 @@ pub fn run_sierra_emu_executor(
     let function = vm.registry().get_function(function_id).unwrap().clone();
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
-    COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let counter_value = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     vm.call_contract(&function, call.initial_gas.into(), call.calldata.0.iter().cloned());
 
@@ -106,7 +106,7 @@ pub fn run_sierra_emu_executor(
 
     let trace = serde_json::to_string_pretty(&trace).unwrap();
     std::fs::create_dir_all("traces/emu/").unwrap();
-    std::fs::write(&format!("traces/emu/trace_{}.json", COUNTER.load(std::sync::atomic::Ordering::Relaxed)), trace)
+    std::fs::write(&format!("traces/emu/trace_{}.json", counter_value), trace)
         .unwrap();
 
     if execution_result.failure_flag {
