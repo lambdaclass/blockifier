@@ -51,27 +51,52 @@ pub fn run_native_executor(
     function_id: &FunctionId,
     call: CallEntryPoint,
     mut syscall_handler: NativeSyscallHandler<'_>,
+    #[cfg(feature = "with-trace-dump")] trace_id: usize,
 ) -> EntryPointExecutionResult<CallInfo> {
-    let execution_result = native_executor.invoke_contract_dynamic(
-        function_id,
-        &call.calldata.0,
-        Some(call.initial_gas.into()),
-        &mut syscall_handler,
-    );
+    let run_result = native_executor
+        .invoke_contract_dynamic(
+            function_id,
+            &call.calldata.0,
+            Some(call.initial_gas.into()),
+            &mut syscall_handler,
+        )
+        .map_err(|source| EntryPointExecutionError::NativeUnexpectedError { source })?;
 
-    let run_result = match execution_result {
-        Ok(res) if res.failure_flag => Err(EntryPointExecutionError::NativeExecutionError {
-            info: if !res.return_values.is_empty() {
-                decode_felts_as_str(&res.return_values)
+    #[cfg(feature = "with-trace-dump")]
+    #[allow(warnings)]
+    {
+        use cairo_native::runtime::trace_dump::TraceDump;
+        use std::sync::Mutex;
+
+        let trace = serde_json::to_string_pretty(&{
+            let trace_dump = unsafe {
+                let fn_ptr = native_executor
+                    .library
+                    .get::<extern "C" fn() -> &'static Mutex<HashMap<u64, TraceDump>>>(
+                        b"get_trace_dump_ptr\0",
+                    )
+                    .unwrap();
+
+                fn_ptr()
+            };
+            let mut trace_dump = trace_dump.lock().unwrap();
+
+            trace_dump.remove(&(trace_id as u64)).unwrap().trace
+        })
+        .unwrap();
+        std::fs::create_dir_all("traces/native/").unwrap();
+        std::fs::write(&format!("traces/native/trace_{}.json", trace_id), trace).unwrap();
+    }
+
+    if run_result.failure_flag {
+        Err(EntryPointExecutionError::NativeExecutionError {
+            info: if !run_result.return_values.is_empty() {
+                decode_felts_as_str(&run_result.return_values)
             } else {
                 String::from("Unknown error")
             },
-        }),
-        Err(runner_err) => {
-            Err(EntryPointExecutionError::NativeUnexpectedError { source: runner_err })
-        }
-        Ok(res) => Ok(res),
-    }?;
+        })?;
+    }
 
     create_callinfo(
         call.clone(),
@@ -84,6 +109,8 @@ pub fn run_native_executor(
     )
 }
 
+pub(crate) static TRACE_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
 pub fn run_sierra_emu_executor(
     mut vm: sierra_emu::VirtualMachine<&mut NativeSyscallHandler<'_>>,
     function_id: &FunctionId,
@@ -91,8 +118,7 @@ pub fn run_sierra_emu_executor(
 ) -> EntryPointExecutionResult<CallInfo> {
     let function = vm.registry().get_function(function_id).unwrap().clone();
 
-    static COUNTER: AtomicUsize = AtomicUsize::new(0);
-    let counter_value = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let counter_value = TRACE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     vm.call_contract(&function, call.initial_gas.into(), call.calldata.0.iter().cloned());
 
@@ -106,8 +132,9 @@ pub fn run_sierra_emu_executor(
 
     let trace = serde_json::to_string_pretty(&trace).unwrap();
     std::fs::create_dir_all("traces/emu/").unwrap();
-    std::fs::write(&format!("traces/emu/trace_{}.json", counter_value), trace)
+    std::fs::write(&format!("traces/prog_{}.sierra", counter_value), vm.program.to_string())
         .unwrap();
+    std::fs::write(&format!("traces/emu/trace_{}.json", counter_value), trace).unwrap();
 
     if execution_result.failure_flag {
         Err(EntryPointExecutionError::NativeExecutionError {
