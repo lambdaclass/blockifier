@@ -229,7 +229,7 @@ impl NativeContractClassV1 {
             let native_program = native_context.compile(sierra_program)?;
             Ok(AotNativeExecutor::from_native_module(
                 native_program,
-                cairo_native::OptLevel::Default,
+                cairo_native::OptLevel::None,
             ))
         }
 
