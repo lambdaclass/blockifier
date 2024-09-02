@@ -3526,9 +3526,11 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 [[package]]
 name = "sierra-emu"
 version = "0.1.0"
-source = "git+https://github.com/lambdaclass/sierra-emu.git?branch=main#ccbb1fb327f83ccbf9da0e0393ed708acbeb0111"
+source = "git+https://github.com/lambdaclass/sierra-emu.git?branch=upd#1ecf37981f66dc4e1cfef593a1feea7a7c8aa89c"
 dependencies = [
  "cairo-lang-sierra",
+ "cairo-lang-sierra-ap-change",
+ "cairo-lang-sierra-gas",
  "cairo-lang-utils",
  "clap 4.5.16",
  "k256",
@@ -3545,6 +3547,7 @@ dependencies = [
  "starknet-crypto 0.7.1",
  "starknet-curve 0.5.0",
  "starknet-types-core",
+ "thiserror",
  "tracing",
  "tracing-subscriber",
 ]
