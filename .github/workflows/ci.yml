@@ -142,7 +142,7 @@ jobs:
       - name: Run Machete (detect unused dependencies)
         uses: bnjbvr/cargo-machete@main
         env:
-          RUSTUP_TOOLCHAIN: nightly-2023-12-21
+          RUSTUP_TOOLCHAIN: nightly-2024-04-29
           MLIR_SYS_180_PREFIX: /usr/lib/llvm-18/
           LLVM_SYS_181_PREFIX: /usr/lib/llvm-18/
           TABLEGEN_180_PREFIX: /usr/lib/llvm-18/
