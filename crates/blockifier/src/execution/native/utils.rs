@@ -106,8 +106,7 @@ pub fn run_sierra_emu_executor(
 
     let trace = serde_json::to_string_pretty(&trace).unwrap();
     std::fs::create_dir_all("traces/emu/").unwrap();
-    std::fs::write(&format!("traces/emu/trace_{}.json", counter_value), trace)
-        .unwrap();
+    std::fs::write(&format!("traces/emu/trace_{}.json", counter_value), trace).unwrap();
 
     if execution_result.failure_flag {
         Err(EntryPointExecutionError::NativeExecutionError {

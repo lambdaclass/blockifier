@@ -17,29 +17,6 @@ on:
       - edited
 
 jobs:
-  commitlint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install commitlint
-        run: npm install --global @commitlint/cli @commitlint/config-conventional
-
-      - name: Validate PR commits with commitlint
-        if: github.event_name == 'pull_request' && !(contains(github.event.pull_request.title, '/merge-main') || contains(github.event.pull_request.title, '/merge main'))
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
-
-      - name: Validate PR title with commitlint
-        if: github.event_name != 'merge_group' && github.event_name != 'push' && !(contains(github.event.pull_request.title, '/merge-main') || contains(github.event.pull_request.title, '/merge main'))
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-        run: echo "$TITLE" | commitlint --verbose
-
   format:
     runs-on: ubuntu-latest
     steps:
@@ -81,7 +58,7 @@ jobs:
         env:
           CAIRO_NATIVE_RUNTIME_LIBRARY: ${{ steps.native-deps.outputs.cairo-native-runtime-library }}
           MLIR_SYS_180_PREFIX: /usr/lib/llvm-18/
-          LLVM_SYS_180_PREFIX: /usr/lib/llvm-18/
+          LLVM_SYS_181_PREFIX: /usr/lib/llvm-18/
           TABLEGEN_180_PREFIX: /usr/lib/llvm-18/
 
   featureless-build:
@@ -99,13 +76,13 @@ jobs:
         env:
           CAIRO_NATIVE_RUNTIME_LIBRARY: ${{ steps.native-deps.outputs.cairo-native-runtime-library }}
           MLIR_SYS_180_PREFIX: /usr/lib/llvm-18/
-          LLVM_SYS_180_PREFIX: /usr/lib/llvm-18/
+          LLVM_SYS_181_PREFIX: /usr/lib/llvm-18/
           TABLEGEN_180_PREFIX: /usr/lib/llvm-18/
       - run: cargo test -p blockifier
         env:
           CAIRO_NATIVE_RUNTIME_LIBRARY: ${{ steps.native-deps.outputs.cairo-native-runtime-library }}
           MLIR_SYS_180_PREFIX: /usr/lib/llvm-18/
-          LLVM_SYS_180_PREFIX: /usr/lib/llvm-18/
+          LLVM_SYS_181_PREFIX: /usr/lib/llvm-18/
           TABLEGEN_180_PREFIX: /usr/lib/llvm-18/
 
   run-python-tests:
@@ -145,13 +122,13 @@ jobs:
         env:
           CAIRO_NATIVE_RUNTIME_LIBRARY: ${{ steps.native-deps.outputs.cairo-native-runtime-library }}
           MLIR_SYS_180_PREFIX: /usr/lib/llvm-18/
-          LLVM_SYS_180_PREFIX: /usr/lib/llvm-18/
+          LLVM_SYS_181_PREFIX: /usr/lib/llvm-18/
           TABLEGEN_180_PREFIX: /usr/lib/llvm-18/
       - run: cargo test --features concurrency
         env:
           CAIRO_NATIVE_RUNTIME_LIBRARY: ${{ steps.native-deps.outputs.cairo-native-runtime-library }}
           MLIR_SYS_180_PREFIX: /usr/lib/llvm-18/
-          LLVM_SYS_180_PREFIX: /usr/lib/llvm-18/
+          LLVM_SYS_181_PREFIX: /usr/lib/llvm-18/
           TABLEGEN_180_PREFIX: /usr/lib/llvm-18/
 
   # Keep the name 'udeps' to match original action name, so we don't need to define specific branch
@@ -167,5 +144,5 @@ jobs:
         env:
           RUSTUP_TOOLCHAIN: nightly-2023-12-21
           MLIR_SYS_180_PREFIX: /usr/lib/llvm-18/
-          LLVM_SYS_180_PREFIX: /usr/lib/llvm-18/
+          LLVM_SYS_181_PREFIX: /usr/lib/llvm-18/
           TABLEGEN_180_PREFIX: /usr/lib/llvm-18/
