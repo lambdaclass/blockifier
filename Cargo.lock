@@ -1072,7 +1072,7 @@ dependencies = [
 [[package]]
 name = "cairo-native"
 version = "0.2.0"
-source = "git+https://github.com/lambdaclass/cairo_native?branch=native2.8.0#f255a56472ee357071ed7ac7de92d7ccd72a3587"
+source = "git+https://github.com/lambdaclass/cairo_native?branch=native2.8.0-no-tailrec#ac85cf1d1ba8d8b1c8a52e4fcc0f8d37f64cf2eb"
 dependencies = [
  "anyhow",
  "aquamarine",
@@ -1121,7 +1121,7 @@ dependencies = [
 [[package]]
 name = "cairo-native-runtime"
 version = "0.2.0"
-source = "git+https://github.com/lambdaclass/cairo_native?branch=native2.8.0#f255a56472ee357071ed7ac7de92d7ccd72a3587"
+source = "git+https://github.com/lambdaclass/cairo_native?branch=native2.8.0-no-tailrec#ac85cf1d1ba8d8b1c8a52e4fcc0f8d37f64cf2eb"
 dependencies = [
  "cairo-lang-sierra-gas",
  "lazy_static",
