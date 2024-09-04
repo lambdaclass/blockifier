@@ -102,6 +102,7 @@ impl CallEntryPoint {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ConstructorContext {
     pub class_hash: ClassHash,
     // Only relevant in deploy syscall.
@@ -110,7 +111,7 @@ pub struct ConstructorContext {
     pub caller_address: ContractAddress,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EntryPointExecutionContext {
     // We use `Arc` to avoid the clone of this potentially large object, as inner calls
     // are created during execution.

@@ -12,3 +12,5 @@ tmp_venv/*
 
 .idea
 .vscode
+
+*.json

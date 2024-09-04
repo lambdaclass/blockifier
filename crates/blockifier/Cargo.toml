@@ -13,6 +13,7 @@ workspace = true
 concurrency = []
 jemalloc = ["dep:tikv-jemallocator"]
 testing = ["rand", "rstest"]
+use-sierra-emu = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -53,7 +54,10 @@ starknet_api = { workspace = true, features = ["testing"] }
 strum.workspace = true
 strum_macros.workspace = true
 thiserror.workspace = true
+sierra-emu.workspace = true
 tikv-jemallocator = { workspace = true, optional = true }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
 
 [dev-dependencies]
 assert_matches.workspace = true

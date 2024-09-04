@@ -602,6 +602,7 @@ impl NativeContractClassV1 {
 #[derive(Debug)]
 pub struct NativeContractClassV1Inner {
     pub executor: Arc<AotNativeExecutor>,
+    pub program: cairo_lang_sierra::program::Program, // needed for sierra emu
     entry_points_by_type: NativeContractEntryPoints,
     // Storing the raw sierra program and entry points to be able to fallback to the vm
     sierra_program_raw: Vec<BigUintAsHex>,
@@ -632,6 +633,7 @@ impl NativeContractClassV1Inner {
 
         Ok(NativeContractClassV1Inner {
             executor,
+            program: sierra_program.clone(),
             entry_points_by_type: NativeContractEntryPoints::try_from(
                 &lookup_fid,
                 &sierra_contract_class.entry_points_by_type,

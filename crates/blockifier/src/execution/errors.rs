@@ -87,6 +87,8 @@ pub enum EntryPointExecutionError {
     InvalidExecutionInput { input_descriptor: String, info: String },
     #[error("Native execution error: {info}")]
     NativeExecutionError { info: String },
+    #[error("Sierra Emu execution error: {info}")]
+    SierraEmuExecutionError { info: String },
     #[error("Native Fallback Error: {info}")]
     NativeFallbackError { info: Box<EntryPointExecutionError> },
     #[error("Native unexpected error: {source}")]
