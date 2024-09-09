@@ -38,7 +38,7 @@ pub fn execute_entry_point_call(
         run_sierra_emu_executor(vm, function_id, call.clone())?
     } else {
         #[cfg(feature = "with-trace-dump")]
-        let counter_value = {
+        {
             use crate::execution::native::utils::TRACE_COUNTER;
             use cairo_lang_sierra::program_registry::ProgramRegistry;
             use cairo_native::runtime::trace_dump::TraceDump;
@@ -59,10 +59,12 @@ pub fn execute_entry_point_call(
 
                 fn_ptr()
             };
-            let mut trace_dump = trace_dump.lock().unwrap();
 
+            // Since libraries can be shared between executions, we must increment our TRACE_COUNTER to avoid collisions
             let counter_value = TRACE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            trace_dump.insert(
+
+            // Insert the trace dump for this execution
+            trace_dump.lock().unwrap().insert(
                 counter_value as u64,
                 TraceDump::new(
                     ProgramRegistry::new(&contract_class.program).unwrap(),
@@ -70,7 +72,7 @@ pub fn execute_entry_point_call(
                 ),
             );
 
-            // Set the active trace id.
+            // Set the active trace id
             let trace_id_ref = unsafe {
                 contract_class
                     .executor
@@ -83,26 +85,30 @@ pub fn execute_entry_point_call(
                     .as_mut()
                     .unwrap()
             };
+            let old_counter_value = *trace_id_ref;
             *trace_id_ref = counter_value as u64;
 
             println!("Execution started for trace #{counter_value}.");
-            dbg!(trace_dump.keys().collect::<Vec<_>>());
-            counter_value
-        };
 
-        let x = run_native_executor(
-            &contract_class.executor,
-            function_id,
-            call,
-            syscall_handler,
-            #[cfg(feature = "with-trace-dump")]
-            counter_value,
-        )?;
+            let result = run_native_executor(
+                &contract_class.executor,
+                function_id,
+                call,
+                syscall_handler,
+                counter_value,
+            )?;
 
-        #[cfg(feature = "with-trace-dump")]
-        println!("Execution finished for trace #{counter_value}.");
+            // Set old trace id in case this is a recursive call
+            *trace_id_ref = old_counter_value as u64;
 
-        x
+            println!("Execution finished for trace #{counter_value}.");
+
+            result
+        }
+
+        #[cfg(not(feature = "with-trace-dump"))]
+        run_native_executor(&contract_class.executor, function_id, call, syscall_handler)?
     };
+
     Ok(result)
 }
