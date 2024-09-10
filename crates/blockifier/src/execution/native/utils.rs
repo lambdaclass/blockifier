@@ -115,12 +115,13 @@ pub fn run_sierra_emu_executor(
     mut vm: sierra_emu::VirtualMachine<&mut NativeSyscallHandler<'_>>,
     function_id: &FunctionId,
     call: CallEntryPoint,
+    gas: u128,
 ) -> EntryPointExecutionResult<CallInfo> {
     let function = vm.registry().get_function(function_id).unwrap().clone();
 
     let counter_value = TRACE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-    vm.call_contract(&function, call.initial_gas.into(), call.calldata.0.iter().cloned());
+    vm.call_contract(&function, gas, call.calldata.0.iter().cloned());
 
     let mut trace = ProgramTrace::new();
 

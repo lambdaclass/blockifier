@@ -35,7 +35,15 @@ pub fn execute_entry_point_call(
             Arc::new(contract_class.program.clone()),
             &mut syscall_handler,
         );
-        run_sierra_emu_executor(vm, function_id, call.clone())?
+
+        let available_gas = contract_class
+            .executor
+            .gas_metadata
+            .get_initial_available_gas(function_id, Some(call.initial_gas as u128))
+            .map_err(cairo_native::error::Error::GasMetadataError)
+            .unwrap();
+
+        run_sierra_emu_executor(vm, function_id, call.clone(), available_gas)?
     } else {
         #[cfg(feature = "with-trace-dump")]
         {
