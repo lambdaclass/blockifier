@@ -23,7 +23,7 @@ cached = "0.44.0"
 cairo-felt = "0.9.1"
 cairo-lang-sierra = "^2.7.1"
 cairo-lang-starknet = "^2.7.1"
-cairo-native = { path = "../cairo_native" } # main
+cairo-native = { git = "https://github.com/lambdaclass/cairo_native", branch = "add-trace-dump-contracts" }
 cairo-lang-casm = "^2.7.1"
 cairo-lang-runner = "^2.7.1"
 cairo-lang-starknet-classes = "^2.7.1"
@@ -50,7 +50,7 @@ pyo3-log = "0.8.1"
 rand = "0.8"
 regex = "1.10.4"
 rstest = "0.17.0"
-serde = "1.0.184"
+serde = "1.0.209"
 serde_json = "1.0.81"
 sha2 = "0.10.8"
 sha3 = "0.10.6"
@@ -67,7 +67,7 @@ tempfile = "3.7.0"
 test-case = "2.2.2"
 thiserror = "1.0.37"
 tikv-jemallocator = "0.5.4"
-sierra-emu = { path = "../sierra-emu" }
+sierra-emu = { git = "https://github.com/lambdaclass/sierra-emu" }
 
 [workspace.lints.rust]
 future-incompatible = "deny"
